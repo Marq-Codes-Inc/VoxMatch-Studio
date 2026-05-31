@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Sliders, Volume2, Type, Keyboard, BookOpen, Search, Mail } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import { TopBar } from './components/editor/TopBar';
@@ -108,6 +109,10 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   const [horizontalSizes, setHorizontalSizes] = useState({ leftWidth: 35, videoHeight: 60, importHeight: 40 });
   const [verticalSizes, setVerticalSizes] = useState({ leftWidth: 70, topSplit: 40, bottomHeight: 40 });
 
+  // Portal target for the video element – will be placed inside VideoPreviewPanel
+  const mediaPortalRef = useRef<HTMLDivElement>(null);
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
+
   // local file‑open trigger
   const handleOpenFileLocal = useCallback(async (): Promise<void> => {
     fileInputRef.current?.click();
@@ -152,7 +157,15 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     await onFileActivate(file);
   }, [onFileActivate]);
 
-  // context value
+  // Handle video metadata loaded – updates aspect ratio
+  const handleVideoLoadedMetadata = useCallback(() => {
+    const video = mediaElementRef.current;
+    if (video && video.videoWidth && video.videoHeight) {
+      setVideoAspect(video.videoWidth / video.videoHeight);
+    }
+  }, [mediaElementRef]);
+
+  // Context value (unchanged)
   const contextValue: ProjectEditorContextValue = useMemo(() => ({
     isPlaying, currentTime, volume, activeLeftPanelTab, activeSubTab, lyrics, subtitles,
     selectedSubtitleIds, mediaDuration, isMediaLoaded, importedFiles, activeFileId, mediaUrl,
@@ -317,6 +330,8 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
               onToggleLeftPanelTopRowFilled={toggleLeftPanelTopRowFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
+              mediaPortalRef={mediaPortalRef}
+              videoAspect={videoAspect}
             />
           ) : (
             <HorizontalLayout
@@ -328,9 +343,25 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
               onToggleLeftPanelFilled={toggleLeftPanelFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
+              mediaPortalRef={mediaPortalRef}
+              videoAspect={videoAspect}
             />
           )}
         </main>
+
+        {/* Portal: renders the actual <video> element into the VideoPreviewPanel's portal target */}
+        {mediaPortalRef.current && createPortal(
+          <video
+            key={activeFileId}                     // forces unmount/remount on file switch
+            ref={mediaElementRef}
+            src={isMediaLoaded ? (mediaUrl || undefined) : undefined}
+            onLoadedMetadata={handleVideoLoadedMetadata}
+            className="absolute inset-0 w-full h-full object-contain z-10"
+            style={{ display: activeFile?.type.startsWith('video') ? 'block' : 'none' }}
+            playsInline
+          />,
+          mediaPortalRef.current
+        )}
 
         <ContextMenu
           contextMenu={contextMenu}
@@ -410,3 +441,4 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 export const ProjectEditor: React.FC<ProjectEditorProps> = (props) => {
   return <ProjectEditorContent {...props} />;
 };
+

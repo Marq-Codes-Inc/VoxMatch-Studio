@@ -1,4 +1,3 @@
-// src/components/layout/VerticalLayout.tsx
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { ImportMediaPanel } from '../panels/ImportMediaPanel';
@@ -37,6 +36,8 @@ interface VerticalLayoutProps {
   onToggleMaximizeVideo: () => void;
   onContextMenu?: (e: React.MouseEvent | React.SyntheticEvent, file: ImportedMediaFile, targetElement?: HTMLElement) => void;
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
+  mediaPortalRef: React.RefObject<HTMLDivElement>;
+  videoAspect: number | null;
 }
 
 export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
@@ -49,6 +50,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   onToggleMaximizeVideo,
   onContextMenu,
   onDragStart,
+  mediaPortalRef,
+  videoAspect,
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -287,7 +290,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
         />
       )}
 
-      {/* RIGHT COLUMN: Video Preview – audioElementRef removed */}
+      {/* RIGHT COLUMN: Video Preview */}
       <div 
         className="flex-1 flex flex-col min-w-0"
         style={{ width: `${rightColumnWidth}%` }}
@@ -302,9 +305,6 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
           mediaElementRef={context.mediaElementRef}
           currentTime={context.currentTime}
           mediaDuration={context.mediaDuration}
-          handleTimeUpdate={() => {}}
-          handleLoadedMetadata={() => {}}
-          handleMediaEnded={() => {}}
           activeFile={context.activeFile}
           settings={context.settings}
           currentSubtitleText={context.currentSubtitleText}
@@ -313,8 +313,12 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
           subtitleTextStyle={context.subtitleTextStyle}
           overlayMode={context.activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
           handleSeek={context.handleSeek}
+          mediaPortalRef={mediaPortalRef}
+          videoAspect={videoAspect}
         />
       </div>
     </div>
   );
 };
+
+

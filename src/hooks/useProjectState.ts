@@ -296,8 +296,14 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     setMarkers(prev => [...prev, { id: generateId(), time, label }]);
   }, []);
 
+  // ✅ FIX: Keep loaded state and pass regenerated url back into state
   const updateFileAfterLoad = useCallback((loadedFile: ImportedMediaFile) => {
-    setImportedFiles(prev => prev.map(f => f.id === loadedFile.id ? { ...f, duration: loadedFile.duration } : f));
+    setImportedFiles(prev => prev.map(f => f.id === loadedFile.id ? { 
+      ...f, 
+      duration: loadedFile.duration,
+      loaded: true,
+      url: loadedFile.url
+    } : f));
   }, []);
 
   const updateCurrentSubtitleText = useCallback((currentTime: number) => {

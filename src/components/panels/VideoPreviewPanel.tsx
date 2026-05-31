@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Video, Maximize, Minimize, FileAudio, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
-import { ImportedMediaFile, AppSettings, StageStyle, TextStyle, StageLayer, GradientStop } from "../../types/types";
-import { getAspectRatio, hexToRgb, clamp01 } from "../../utils/utils";
+// src/components/panels/VideoPreviewPanel.tsx
+import React, { useRef, useEffect, useState } from 'react';
+import { Video, Maximize, Minimize, FileAudio, ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react';
+import { ImportedMediaFile, AppSettings, StageStyle, TextStyle, StageLayer, GradientStop } from '../../types/types';
+import { getAspectRatio, hexToRgb, clamp01 } from '../../utils/utils';
 
 interface VideoPreviewPanelProps {
   isVerticalLayout: boolean;
@@ -10,20 +11,19 @@ interface VideoPreviewPanelProps {
   isMaximizedVideo: boolean;
   setIsMaximizedVideo: (isMax: boolean) => void;
   mediaUrl: string | null;
-  mediaElementRef: React.RefObject<HTMLVideoElement>;
+  mediaElementRef: React.RefObject<HTMLVideoElement>;       // ref to the video element (portaled)
+  mediaPortalRef: React.RefObject<HTMLDivElement>;          // ref to the portal target
   currentTime: number;
   mediaDuration: number;
   handleSeek: (time: number) => void;
-  handleTimeUpdate: () => void;
-  handleLoadedMetadata: () => void;
-  handleMediaEnded: () => void;
   activeFile: ImportedMediaFile | null;
   settings: AppSettings;
   currentSubtitleText: string | null;
   stageStyle: StageStyle;
   lyricTextStyle: TextStyle;
   subtitleTextStyle: TextStyle;
-  overlayMode: "lyrics" | "subtitles";
+  overlayMode: 'lyrics' | 'subtitles';
+  videoAspect: number | null;                                // received from parent
 }
 
 const renderLayer = (layer: StageLayer): React.CSSProperties => {
@@ -54,21 +54,21 @@ const renderLayer = (layer: StageLayer): React.CSSProperties => {
 
 export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   isVerticalLayout, isPlaying, togglePlayPause, isMaximizedVideo, setIsMaximizedVideo,
-  mediaUrl, mediaElementRef, currentTime, mediaDuration, handleSeek,
+  mediaUrl, mediaElementRef, mediaPortalRef, currentTime, mediaDuration, handleSeek,
   activeFile, currentSubtitleText,
   stageStyle, lyricTextStyle, subtitleTextStyle, overlayMode,
+  videoAspect,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const progressFillRef = useRef<HTMLDivElement | null>(null);
-  const [videoAspect, setVideoAspect] = useState<number | null>(null);
   const isDraggingRef = useRef(false);
   const pointerIdRef = useRef<number | null>(null);
   
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
   const [backgroundVideoUrl, setBackgroundVideoUrl] = useState<string | null>(null);
 
-  const isVideo = !!activeFile && activeFile.type.startsWith("video");
-  const isAudioFile = !!activeFile && activeFile.type.startsWith("audio");
+  const isVideo = !!activeFile && activeFile.type.startsWith('video');
+  const isAudioFile = !!activeFile && activeFile.type.startsWith('audio');
 
   useEffect(() => {
     if (!isAudioFile) {
@@ -87,7 +87,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     if (!backgroundVideoRef.current || !backgroundVideoUrl) return;
     const video = backgroundVideoRef.current;
     if (isPlaying) {
-      video.play().catch(e => console.warn("Background video play failed:", e));
+      video.play().catch(e => console.warn('Background video play failed:', e));
     } else {
       video.pause();
     }
@@ -102,17 +102,10 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   }, [currentTime, backgroundVideoUrl, isAudioFile]);
 
   const formatTime = (t: number) => {
-    if (!isFinite(t) || isNaN(t)) return "0:00";
+    if (!isFinite(t) || isNaN(t)) return '0:00';
     const minutes = Math.floor(t / 60);
     const seconds = Math.floor(t % 60);
-    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-  };
-
-  const handleVideoLoadedMetadata = () => {
-    const video = mediaElementRef.current;
-    if (video?.videoWidth && video?.videoHeight) {
-      setVideoAspect(video.videoWidth / video.videoHeight);
-    }
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
   const pageXToTime = (pageX: number) => {
@@ -142,23 +135,23 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       isDraggingRef.current = false;
       pointerIdRef.current = null;
       (e.target as Element).releasePointerCapture?.(ev.pointerId);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
     };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
   };
 
   const onSeekBarKeyDown = (e: React.KeyboardEvent) => {
     if (!mediaDuration) return;
-    if (e.key === "ArrowLeft") { handleSeek(currentTime - 5); e.preventDefault(); }
-    else if (e.key === "ArrowRight") { handleSeek(currentTime + 5); e.preventDefault(); }
-    else if (e.key === "Home") { handleSeek(0); e.preventDefault(); }
-    else if (e.key === "End") { handleSeek(mediaDuration); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { handleSeek(currentTime - 5); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { handleSeek(currentTime + 5); e.preventDefault(); }
+    else if (e.key === 'Home') { handleSeek(0); e.preventDefault(); }
+    else if (e.key === 'End') { handleSeek(mediaDuration); e.preventDefault(); }
   };
 
   // ── Text style & animation ──
-  const textStyle = overlayMode === "lyrics" ? lyricTextStyle : subtitleTextStyle;
+  const textStyle = overlayMode === 'lyrics' ? lyricTextStyle : subtitleTextStyle;
   const stageAspectRatio = getAspectRatio(stageStyle);
 
   const animClass =
@@ -178,16 +171,16 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   };
 
   const overlayStyle: React.CSSProperties = {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
     display: 'flex',
     justifyContent: textStyle.horizontalAlign || 'center',
     alignItems: textStyle.verticalAlign || 'flex-end',
     pointerEvents: 'none',
-    zIndex: 10,
+    zIndex: 15,
   };
 
   const textInnerStyle: React.CSSProperties = {
@@ -207,7 +200,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     transform: `translate(${textStyle.position.x}%, ${textStyle.position.y}%)`,
     pointerEvents: 'auto',
     opacity: currentSubtitleText ? 1 : 0,
-    transition: "opacity 0.3s ease-in-out",
+    transition: 'opacity 0.3s ease-in-out',
     ...getBgStyle(),
   };
 
@@ -223,7 +216,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 className="text-xl font-semibold flex items-center"><Video className="mr-2 text-primary" /> Monitor</h3>
         {!isVerticalLayout && (
-          <button onClick={() => setIsMaximizedVideo(!isMaximizedVideo)} className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color" title={isMaximizedVideo ? "Minimize Video" : "Maximize Video"}>
+          <button onClick={() => setIsMaximizedVideo(!isMaximizedVideo)} className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color" title={isMaximizedVideo ? 'Minimize Video' : 'Maximize Video'}>
             {isMaximizedVideo ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
         )}
@@ -232,7 +225,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       {activeFile && <p className="text-sm text-app-gray mb-2 flex-shrink-0 truncate">{activeFile.name}</p>}
 
       <div className="w-full flex-grow flex items-center justify-center min-h-0 mx-auto">
-        <div className="relative overflow-hidden bg-black rounded-lg" style={{ height: "100%", width: "auto", aspectRatio: isVideo ? (videoAspect || stageAspectRatio) : stageAspectRatio }}>
+        <div className="relative overflow-hidden bg-black rounded-lg" style={{ height: '100%', width: 'auto', aspectRatio: isVideo ? (videoAspect || stageAspectRatio) : stageAspectRatio }}>
           <div className="absolute inset-0 z-0">
             <div className="absolute inset-0" style={{ backgroundColor: stageStyle.backgroundColor || '#000000' }} />
             {visibleLayers.map((layer) => (
@@ -240,14 +233,8 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             ))}
           </div>
 
-          <video 
-            ref={mediaElementRef} 
-            src={isVideo ? (mediaUrl || undefined) : undefined}
-            onLoadedMetadata={handleVideoLoadedMetadata} 
-            className="w-full h-full object-contain relative z-10" 
-            style={{ display: isVideo ? "block" : "none" }}
-            playsInline 
-          />
+          {/* Portal target – the actual <video> element will be injected here by the parent */}
+          <div ref={mediaPortalRef} className="absolute inset-0 z-10" />
 
           {showBackgroundVideo && (
             <video
@@ -260,8 +247,9 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             />
           )}
 
+          {/* Audio file placeholder – now darker */}
           {isAudioFile && !showBackgroundVideo && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-app-gray-light/20">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900">
               <FileAudio size={48} className="text-primary mb-4" />
               <div className="text-lg font-medium text-app-text mb-2">{activeFile?.name || 'Audio File'}</div>
               <div className="text-sm text-app-gray">Audio</div>
@@ -281,7 +269,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
         <button onClick={handleSeekBackward} className="p-2 rounded-full hover:text-primary transition-colors" title="1s back">
           <ChevronLeft size={22} strokeWidth={1.5} />
         </button>
-        <button onClick={togglePlayPause} className="p-2 rounded-full hover:text-primary transition-colors" title={isPlaying ? "Pause" : "Play"}>
+        <button onClick={togglePlayPause} className="p-2 rounded-full hover:text-primary transition-colors" title={isPlaying ? 'Pause' : 'Play'}>
           {isPlaying ? <Pause size={22} strokeWidth={1.5} /> : <Play size={22} strokeWidth={1.5} />}
         </button>
         <button onClick={handleSeekForward} className="p-2 rounded-full hover:text-primary transition-colors" title="1s forward">
@@ -302,7 +290,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             onKeyDown={onSeekBarKeyDown} 
             onPointerDown={onPointerDownTrack} 
             className="relative flex-grow h-3 bg-app-gray-light rounded-full select-none cursor-pointer" 
-            style={{ touchAction: "none" }}
+            style={{ touchAction: 'none' }}
           >
             <div 
               ref={progressFillRef} 
@@ -320,5 +308,3 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     </div>
   );
 };
-
-

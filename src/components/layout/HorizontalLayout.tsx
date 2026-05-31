@@ -1,4 +1,3 @@
-// src/components/layout/HorizontalLayout.tsx
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { ImportMediaPanel } from '../panels/ImportMediaPanel';
@@ -37,6 +36,8 @@ interface HorizontalLayoutProps {
   onToggleMaximizeVideo: () => void;
   onContextMenu?: (e: React.MouseEvent | React.SyntheticEvent, file: ImportedMediaFile, targetElement?: HTMLElement) => void;
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
+  mediaPortalRef: React.RefObject<HTMLDivElement>;
+  videoAspect: number | null;
 }
 
 export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
@@ -49,6 +50,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   onToggleMaximizeVideo,
   onContextMenu,
   onDragStart,
+  mediaPortalRef,
+  videoAspect,
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -240,7 +243,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
 
       {/* RIGHT PANEL */}
       <div className="flex flex-col flex-1 gap-2 min-h-0">
-        {/* Video Preview Panel – audioElementRef removed, not in VideoPreviewPanelProps */}
+        {/* Video Preview Panel */}
         <div style={{ height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%` }} className="min-h-0">
           <VideoPreviewPanel
             isVerticalLayout={false}
@@ -252,9 +255,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             mediaElementRef={context.mediaElementRef}
             currentTime={context.currentTime}
             mediaDuration={context.mediaDuration}
-            handleTimeUpdate={() => {}}
-            handleLoadedMetadata={() => {}}
-            handleMediaEnded={() => {}}
             activeFile={context.activeFile}
             settings={context.settings}
             currentSubtitleText={context.currentSubtitleText}
@@ -263,6 +263,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             subtitleTextStyle={context.subtitleTextStyle}
             overlayMode={context.activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
             handleSeek={context.handleSeek}
+            mediaPortalRef={mediaPortalRef}
+            videoAspect={videoAspect}
           />
         </div>
 

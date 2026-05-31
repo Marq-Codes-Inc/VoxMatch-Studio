@@ -109,16 +109,42 @@ button:active {
   transform: none !important;
 }
 
-/* Custom Scrollbars */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--app-gray-dark); border-radius: 4px; }
-::-webkit-scrollbar-thumb { background: var(--app-border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--app-gray); }
+/* Custom Scrollbars - Modern "Floating" Style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
 
-.lyrics-list-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-.lyrics-list-scrollbar::-webkit-scrollbar-track { background: var(--app-gray-dark); border-radius: 3px; }
-.lyrics-list-scrollbar::-webkit-scrollbar-thumb { background: var(--app-border); border-radius: 3px; }
-.lyrics-list-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--app-gray); }
+::-webkit-scrollbar-track {
+  background: transparent; /* Makes the scrollbar look like it's floating */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--app-border-light);
+  border-radius: 10px;
+  border: 1px solid var(--app-bg); /* Adds a small gap effect */
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary); /* Thumb turns primary color on hover */
+  cursor: pointer;
+}
+
+/* Slimmer version for specific lists */
+.lyrics-list-scrollbar::-webkit-scrollbar { 
+  width: 4px; 
+  height: 4px; 
+}
+
+.lyrics-list-scrollbar::-webkit-scrollbar-thumb { 
+  background: var(--app-border); 
+}
+
+.lyrics-list-scrollbar::-webkit-scrollbar-thumb:hover { 
+  background: var(--app-gray); 
+}
 
 /* Focus & Selection */
 *:focus-visible {

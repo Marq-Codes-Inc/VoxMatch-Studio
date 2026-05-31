@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { VoxMatchProject } from '../types/project';
 import { ImportedMediaFile, LyricLine } from '../types/types';
 import { useMediaPlayback } from './useMediaPlayback';
@@ -86,6 +86,23 @@ export function useProjectEditor(initialProject: VoxMatchProject) {
       projectState.setLoadingFileId(null);
     }
   }, [projectState, mediaPlayback, markAsUnsaved]);
+
+  // ✅ FIX: Auto-load the active media file when the project is opened
+  const hasAutoLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasAutoLoadedRef.current && initialProject.activeFileId) {
+      hasAutoLoadedRef.current = true;
+      const fileToLoad = projectState.importedFiles.find(f => f.id === initialProject.activeFileId);
+      
+      // Auto-activate if we have a path (Electron) or existing URL
+      if (fileToLoad && !fileToLoad.loaded && (fileToLoad.path || fileToLoad.url)) {
+        onFileActivate(fileToLoad).catch(err => {
+          console.error('Failed to auto-load active media file:', err);
+        });
+      }
+    }
+  }, [initialProject.activeFileId, projectState.importedFiles, onFileActivate]);
 
   // ── Drop / open file import ──
   const handleFilesDropped = useCallback(async (files: File[]) => {
@@ -241,4 +258,3 @@ export function useProjectEditor(initialProject: VoxMatchProject) {
     formatTime,
   };
 }
-

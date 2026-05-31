@@ -1,0 +1,248 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme Variables */
+:root {
+  --primary: #046466;
+  --primary-hover: #034a4c;
+  --success: #10B981;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  
+  --app-bg: #111111;
+  --app-surface: #1A1A1A;
+  --app-surface-hover: #222222;
+  --app-surface-active: #2A2A2A;
+  --app-border: #2D2D2D;
+  --app-border-light: #3A3A3A;
+  --app-gray-light: #2A2A2A;
+  --app-gray: #A3A3A3;
+  --app-gray-dark: #1F1F1F;
+  --app-text: #E5E5E5;
+  --app-text-primary: #FFFFFF;
+  --app-text-secondary: #A3A3A3;
+  --app-icon-color: #A3A3A3;
+  --app-input-bg: #222222;
+  --app-timeline-bg: #0F0F0F;
+  --app-border-disabled: #3A3A3A;
+}
+
+[data-theme="dark"] {
+  --app-bg: #111111;
+  --app-surface: #1A1A1A;
+  --app-surface-hover: #222222;
+  --app-surface-active: #2A2A2A;
+  --app-border: #2D2D2D;
+  --app-border-light: #3A3A3A;
+  --app-gray-light: #2A2A2A;
+  --app-gray: #A3A3A3;
+  --app-gray-dark: #1F1F1F;
+  --app-text: #E5E5E5;
+  --app-text-primary: #FFFFFF;
+  --app-text-secondary: #A3A3A3;
+  --app-icon-color: #A3A3A3;
+  --app-input-bg: #222222;
+  --app-timeline-bg: #0F0F0F;
+  --app-border-disabled: #3A3A3A;
+}
+
+[data-theme="light"] {
+  --app-bg: #F5F5F5;
+  --app-surface: #FFFFFF;
+  --app-surface-hover: #F0F0F0;
+  --app-surface-active: #E8E8E8;
+  --app-border: #E0E0E0;
+  --app-border-light: #D0D0D0;
+  --app-gray-light: #F0F0F0;
+  --app-gray: #666666;
+  --app-gray-dark: #E0E0E0;
+  --app-text: #1A1A1A;
+  --app-text-primary: #000000;
+  --app-text-secondary: #555555;
+  --app-icon-color: #555555;
+  --app-input-bg: #FFFFFF;
+  --app-timeline-bg: #F0F0F0;
+  --app-border-disabled: #D0D0D0;
+}
+
+/* Global Reset */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  overflow: hidden;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+input, textarea, [contenteditable="true"], .selectable {
+  -webkit-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+button, button:hover, button:active, button:focus,
+input, input:focus, select, select:focus,
+textarea, textarea:focus, a, a:hover {
+  transition: none !important;
+}
+
+button:active {
+  transform: none !important;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--app-gray-dark); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--app-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--app-gray); }
+
+.lyrics-list-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.lyrics-list-scrollbar::-webkit-scrollbar-track { background: var(--app-gray-dark); border-radius: 3px; }
+.lyrics-list-scrollbar::-webkit-scrollbar-thumb { background: var(--app-border); border-radius: 3px; }
+.lyrics-list-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--app-gray); }
+
+/* Focus & Selection */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background-color: var(--primary);
+  color: white;
+}
+
+/* Input Styles */
+input, textarea, select {
+  background-color: var(--app-input-bg);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(4, 100, 102, 0.2);
+}
+input[type="color"] {
+  width: 40px; height: 40px; padding: 2px; border-radius: 6px; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; }
+input[type="range"]:focus { outline: none; }
+input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: var(--app-gray-dark); border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--primary); margin-top: -6px; cursor: pointer;
+  border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
+
+/* Disabled States */
+.disabled, button:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Drag & Drop */
+.drag-over { border: 2px dashed var(--primary); background-color: rgba(4,100,102,0.05); }
+.dragging { opacity: 0.5; cursor: grabbing; }
+
+/* Essential Animations */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fade-in 0.15s ease-out; }
+
+.loading-shimmer {
+  background: linear-gradient(90deg, var(--app-gray-dark) 0%, var(--app-gray-light) 50%, var(--app-gray-dark) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Modal Animations (Subtle Zoom) */
+
+/* Overlay fade */
+@keyframes modal-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-overlay-out { from { opacity: 1; } to { opacity: 0; } }
+.animate-modal-overlay-in  { animation: modal-overlay-in 0.2s ease-out both; }
+.animate-modal-overlay-out { animation: modal-overlay-out 0.2s ease-in both; }
+
+/* Content zoom – gentle, no overshoot */
+@keyframes modal-content-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes modal-content-out {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+.animate-modal-content-in  { animation: modal-content-in 0.2s ease-out both; }
+.animate-modal-content-out { animation: modal-content-out 0.2s ease-in both; }
+
+/* Text overlay animations */
+@keyframes text-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes text-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes text-pop {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes text-typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.animate-text-fade {
+  animation: text-fade 0.4s ease-out both;
+}
+.animate-text-slide-up {
+  animation: text-slide-up 0.4s ease-out both;
+}
+.animate-text-pop {
+  animation: text-pop 0.3s ease-out both;
+}
+.animate-text-typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: text-typewriter 1s steps(30, end) both;
+}

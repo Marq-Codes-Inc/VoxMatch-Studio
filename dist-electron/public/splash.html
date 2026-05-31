@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoxMatch Studio - Loading</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      /* Transparent background for Electron frameless window */
+      background: transparent; 
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .splash-container {
+      width: 100%;
+      height: 100%;
+      background: #ffffff;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      position: relative;
+    }
+
+    /* Left Pane with Image and Fade */
+    .left-pane {
+      width: 45%;
+      height: 100%;
+      position: relative;
+      background-color: #f4f6f8;
+    }
+
+    .left-pane img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: left center;
+    }
+
+    /* Gradient overlay to smoothly blend the image into the right pane */
+    .left-pane::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 40%;
+      background: linear-gradient(to right, transparent, #ffffff);
+    }
+
+    /* Right Pane Content */
+    .right-pane {
+      width: 55%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .title {
+      color: #0b5753;
+      font-size: 42px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: #666666;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 40px;
+    }
+
+    .info-box {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px 40px;
+      margin-bottom: 50px;
+      background: #ffffff;
+    }
+
+    .info-title {
+      color: #0b5753;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .info-subtitle {
+      color: #666666;
+      font-size: 13px;
+    }
+
+    .loading-main {
+      color: #333333;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .loading-sub {
+      color: #888888;
+      font-size: 12px;
+      margin-bottom: 24px;
+    }
+
+    /* Progress Bar Layout */
+    .progress-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .progress-container {
+      flex: 1;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #0ba37f;
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
+
+    .progress-text {
+      color: #666666;
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 36px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <div class="left-pane">
+      <img src="./assets/splash.jpg" alt="VoxMatch Workspace">
+    </div>
+    
+    <div class="right-pane">
+      <h1 class="title">VoxMatch Studio</h1>
+      <p class="subtitle">Precise lyric syncing &bull; Subtitle generation &bull; AI Transcription</p>
+
+      <div class="info-box">
+        <p class="info-title">VoxMatch Studio by Marq</p>
+        <p class="info-subtitle">Version 1.0 &bull; GPU Optimized</p>
+      </div>
+
+      <p class="loading-main" id="loadingText">Preparing subtitle engine...</p>
+      <p class="loading-sub" id="loadingSubText">Initializing engine &bull; Loading models &bull; Preparing timeline</p>
+      
+      <div class="progress-row">
+        <div class="progress-container">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    console.log('🎬 Splash screen loaded');
+    
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const loadingText = document.getElementById('loadingText');
+    const loadingSubText = document.getElementById('loadingSubText');
+    
+    const loadingStates = [
+      { main: 'Preparing subtitle engine...', sub: 'Initializing engine • Loading models • Preparing timeline', threshold: 0 },
+      { main: 'Loading AI Models...', sub: 'Loading transcription models • Allocating VRAM', threshold: 30 },
+      { main: 'Setting up workspace...', sub: 'Loading user preferences • Initializing UI', threshold: 60 },
+      { main: 'Almost ready...', sub: 'Finalizing components • Starting VoxMatch', threshold: 90 }
+    ];
+    
+    let progress = 0;
+    
+    const interval = setInterval(() => {
+      // Simulate non-linear loading
+      progress += Math.random() * 3;
+      
+      if (progress >= 100) {
+        progress = 100;
+        loadingText.textContent = 'Ready!';
+        loadingSubText.textContent = 'Launching application...';
+        clearInterval(interval);
+      }
+      
+      // Update Progress visually
+      const currentProgress = Math.min(Math.floor(progress), 100);
+      progressBar.style.width = currentProgress + '%';
+      progressText.textContent = currentProgress + '%';
+      
+      // Update text based on threshold
+      const currentState = loadingStates.slice().reverse().find(state => progress >= state.threshold);
+      if (currentState && loadingText.textContent !== 'Ready!') {
+        loadingText.textContent = currentState.main;
+        loadingSubText.textContent = currentState.sub;
+      }
+      
+    }, 50);
+  </script>
+</body>
+</html>

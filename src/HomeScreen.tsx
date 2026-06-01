@@ -59,12 +59,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [helpActiveSection, setHelpActiveSection] = useState('quick-start');
   const [helpAccordion, setHelpAccordion] = useState<string | null>(null);
 
-  // Apply theme to document root whenever settings.theme changes
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('theme-dark', 'theme-light', 'theme-system');
     if (settings.theme === 'system') {
-      root.classList.add('theme-system'); // may rely on CSS media query
+      root.classList.add('theme-system');
     } else if (settings.theme === 'light') {
       root.classList.add('theme-light');
     } else {
@@ -120,7 +119,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </header>
 
-      {/* Main Content (same as before) */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0">
         <div className="max-w-7xl mx-auto px-8 py-8 w-full flex flex-col h-full">
           <div className="flex-shrink-0">
@@ -258,7 +257,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         title="Settings"
-        size="xl"   // larger for Settings
+        size="xl"
       >
         <SettingsModalWithSections
           settings={settings}
@@ -294,7 +293,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   );
 };
 
-// ---- Internal sub-components for modal navigation (kept inside for brevity) ----
+// Internal sub-components for modal navigation
 const SettingsModalWithSections: React.FC<{
   settings: AppSettings;
   handleSettingChange: (name: string, value: any) => void;
@@ -372,3 +371,4 @@ const HelpModalWithSections: React.FC<{
     </div>
   );
 };
+

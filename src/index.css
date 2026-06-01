@@ -109,26 +109,26 @@ button:active {
   transform: none !important;
 }
 
-/* Custom Scrollbars - Modern "Floating" Style */
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent; /* Makes the scrollbar look like it's floating */
+  background: transparent;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--app-border-light);
   border-radius: 10px;
-  border: 1px solid var(--app-bg); /* Adds a small gap effect */
+  border: 1px solid var(--app-bg);
   transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--primary); /* Thumb turns primary color on hover */
+  background: var(--primary);
   cursor: pointer;
 }
 
@@ -209,7 +209,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* Modal Animations (Subtle Zoom) */
+/* Modal Animations */
 
 /* Overlay fade */
 @keyframes modal-overlay-in { from { opacity: 0; } to { opacity: 1; } }
@@ -217,7 +217,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 .animate-modal-overlay-in  { animation: modal-overlay-in 0.2s ease-out both; }
 .animate-modal-overlay-out { animation: modal-overlay-out 0.2s ease-in both; }
 
-/* Content zoom – gentle, no overshoot */
+/* Content zoom */
 @keyframes modal-content-in {
   from {
     transform: scale(0.95);

@@ -38,6 +38,7 @@ interface HorizontalLayoutProps {
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
   mediaPortalRef: React.RefObject<HTMLDivElement>;
   videoAspect: number | null;
+  onOpenStageSettingsModal?: () => void;
 }
 
 export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
@@ -52,6 +53,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   onDragStart,
   mediaPortalRef,
   videoAspect,
+  onOpenStageSettingsModal = () => {},
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -223,7 +225,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             setSubtitleTextStyle={context.setSubtitleTextStyle}
             subtitleLanguage="en-US"
             setSubtitleLanguage={() => {}}
-            onOpenStageSettingsModal={() => {}}
+            onOpenStageSettingsModal={onOpenStageSettingsModal}
             handleBatchAddLyrics={context.handleBatchAddLyrics}
             handleBatchAddSubtitles={context.handleBatchAddSubtitles}
             currentTime={context.currentTime}

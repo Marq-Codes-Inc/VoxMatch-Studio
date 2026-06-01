@@ -106,6 +106,10 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     addMarker, addTimelineItem, duplicateTimelineItem,
   } = projectState;
 
+  const handleOpenStageSettingsModal = useCallback(() => {
+    setIsStageSettingsModalOpen(true);
+  }, [setIsStageSettingsModalOpen]);
+
   const [horizontalSizes, setHorizontalSizes] = useState({ leftWidth: 35, videoHeight: 60, importHeight: 40 });
   const [verticalSizes, setVerticalSizes] = useState({ leftWidth: 70, topSplit: 40, bottomHeight: 40 });
 
@@ -165,7 +169,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     }
   }, [mediaElementRef]);
 
-  // Context value (unchanged)
+  // Context value
   const contextValue: ProjectEditorContextValue = useMemo(() => ({
     isPlaying, currentTime, volume, activeLeftPanelTab, activeSubTab, lyrics, subtitles,
     selectedSubtitleIds, mediaDuration, isMediaLoaded, importedFiles, activeFileId, mediaUrl,
@@ -330,6 +334,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
               onToggleLeftPanelTopRowFilled={toggleLeftPanelTopRowFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
+              onOpenStageSettingsModal={handleOpenStageSettingsModal}
               mediaPortalRef={mediaPortalRef}
               videoAspect={videoAspect}
             />
@@ -343,16 +348,17 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
               onToggleLeftPanelFilled={toggleLeftPanelFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
+              onOpenStageSettingsModal={handleOpenStageSettingsModal}
               mediaPortalRef={mediaPortalRef}
               videoAspect={videoAspect}
             />
           )}
         </main>
 
-        {/* Portal: renders the actual <video> element into the VideoPreviewPanel's portal target */}
+        {/* Portal */}
         {mediaPortalRef.current && createPortal(
           <video
-            key={activeFileId}                     // forces unmount/remount on file switch
+            key={activeFileId}
             ref={mediaElementRef}
             src={isMediaLoaded ? (mediaUrl || undefined) : undefined}
             onLoadedMetadata={handleVideoLoadedMetadata}
@@ -441,4 +447,3 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 export const ProjectEditor: React.FC<ProjectEditorProps> = (props) => {
   return <ProjectEditorContent {...props} />;
 };
-

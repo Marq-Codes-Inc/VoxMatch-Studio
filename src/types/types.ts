@@ -1,4 +1,4 @@
-// src/types/types.ts - Updated with full StageLayer properties
+// src/types/types.ts
 
 export interface ImportedMediaFile {
   id: string;
@@ -108,7 +108,7 @@ export interface TextStyle {
   width: number;
   verticalAlign: 'flex-start' | 'center' | 'flex-end';
   horizontalAlign: 'flex-start' | 'center' | 'flex-end';
-  animation?: string;   // <-- add this line
+  animation?: string;
 }
 
 export interface LayoutPanels {

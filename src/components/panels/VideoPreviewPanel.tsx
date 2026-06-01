@@ -249,9 +249,9 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
 
           {/* Audio file placeholder – now darker */}
           {isAudioFile && !showBackgroundVideo && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-gray-900">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50">
               <FileAudio size={48} className="text-primary mb-4" />
-              <div className="text-lg font-medium text-app-text mb-2">{activeFile?.name || 'Audio File'}</div>
+              <div className="text-lg font-medium text-white mb-2">{activeFile?.name || 'Audio File'}</div>
               <div className="text-sm text-app-gray">Audio</div>
             </div>
           )}

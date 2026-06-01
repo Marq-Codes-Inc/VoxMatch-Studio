@@ -38,6 +38,7 @@ interface VerticalLayoutProps {
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
   mediaPortalRef: React.RefObject<HTMLDivElement>;
   videoAspect: number | null;
+  onOpenStageSettingsModal?: () => void;
 }
 
 export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
@@ -52,6 +53,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   onDragStart,
   mediaPortalRef,
   videoAspect,
+  onOpenStageSettingsModal = () => {},
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -231,7 +233,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
               setSubtitleTextStyle={context.setSubtitleTextStyle}
               subtitleLanguage="en-US"
               setSubtitleLanguage={() => {}}
-              onOpenStageSettingsModal={() => {}}
+              onOpenStageSettingsModal={onOpenStageSettingsModal}
               handleBatchAddLyrics={context.handleBatchAddLyrics}
               handleBatchAddSubtitles={context.handleBatchAddSubtitles}
               currentTime={context.currentTime}
@@ -320,5 +322,3 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
     </div>
   );
 };
-
-

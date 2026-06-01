@@ -48,9 +48,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
     };
   }, [isOpen, updatePosition]);
 
+  // Handle clicks outside – now compatible with portals and mousedown listeners
   useEffect(() => {
     if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if clicking inside the portal menu
       if (
         buttonRef.current &&
         !buttonRef.current.contains(event.target as Node) &&
@@ -59,6 +62,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
         setIsOpen(false);
       }
     };
+
+    // Use 'mousedown' so it matches the event phase most modals use to close
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
@@ -102,16 +107,20 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 left: menuPosition.left,
                 width: menuPosition.width,
               }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="max-h-60 overflow-y-auto">
                 {options.map((option) => (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onChange(name, option.value);
                       setIsOpen(false);
                     }}
+                    onMouseDown={(e) => e.stopPropagation()}
                     className={`w-full px-3 py-2 text-sm text-left hover:bg-app-gray-light ${
                       value === option.value ? 'bg-primary text-white' : 'text-app-text'
                     }`}

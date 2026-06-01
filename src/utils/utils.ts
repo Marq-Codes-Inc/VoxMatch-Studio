@@ -1,3 +1,5 @@
+import { StageStyle } from "../types/types";
+
 // src/utils/utils.ts
 export function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return '00:00:00.000';
@@ -22,8 +24,19 @@ export function timeStringToSeconds(timeStr: string): number {
   }
 }
 
-export function getAspectRatio(style: any): number {
-  return 16 / 9;
+export function getAspectRatio(stageStyle: StageStyle): number {
+  if (stageStyle.aspectRatio === 'custom' && stageStyle.customWidth && stageStyle.customHeight) {
+    return stageStyle.customWidth / stageStyle.customHeight;
+  }
+  const ratios: Record<string, number> = {
+    '16:9': 16 / 9,
+    '4:3': 4 / 3,
+    '1:1': 1,
+    '9:16': 9 / 16,
+    '21:9': 21 / 9,
+    '2.35:1': 2.35,
+  };
+  return ratios[stageStyle.aspectRatio || '16:9'] || 16 / 9;
 }
 
 export function hexToRgb(hex: string): string {

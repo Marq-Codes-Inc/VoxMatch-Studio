@@ -19,7 +19,7 @@ const sizeClasses: Record<ModalSize, string> = {
   xl: 'w-[95vw] max-w-[1200px]',
   '2xl': 'w-[98vw] max-w-[1400px]',
   full: 'w-[98vw] max-w-[1600px]',
-  stage: 'w-[98vw] max-w-[1800px]',
+  stage: 'w-[98vw] h-[96vh] max-w-none max-h-none',   // ✅ fixed, largest size
 };
 
 const ENTER_DURATION = 300;
@@ -82,6 +82,8 @@ export const Modal: React.FC<ModalProps> = ({
     ? 'w-[80vw] max-w-[1200px]'
     : sizeClasses[size];
 
+  const heightClass = size === 'stage' ? '' : 'max-h-[90vh]';
+
   return (
     <div
       className={`fixed inset-0 flex items-center justify-center z-50 p-4
@@ -94,8 +96,9 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <div
         ref={modalRef}
-        className={`bg-app-surface rounded-lg shadow-xl max-h-[90vh] overflow-hidden flex flex-col
+        className={`bg-app-surface rounded-lg shadow-xl overflow-hidden flex flex-col
           ${modalSizeClass}
+          ${heightClass}
           ${animState === 'enter' ? 'animate-modal-content-in' : ''}
           ${animState === 'exit' ? 'animate-modal-content-out' : ''}
         `}

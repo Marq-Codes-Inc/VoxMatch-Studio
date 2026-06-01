@@ -11,8 +11,8 @@ interface VideoPreviewPanelProps {
   isMaximizedVideo: boolean;
   setIsMaximizedVideo: (isMax: boolean) => void;
   mediaUrl: string | null;
-  mediaElementRef: React.RefObject<HTMLVideoElement>;       // ref to the video element (portaled)
-  mediaPortalRef: React.RefObject<HTMLDivElement>;          // ref to the portal target
+  mediaElementRef: React.RefObject<HTMLVideoElement>;
+  mediaPortalRef: React.RefObject<HTMLDivElement>;
   currentTime: number;
   mediaDuration: number;
   handleSeek: (time: number) => void;
@@ -23,7 +23,7 @@ interface VideoPreviewPanelProps {
   lyricTextStyle: TextStyle;
   subtitleTextStyle: TextStyle;
   overlayMode: 'lyrics' | 'subtitles';
-  videoAspect: number | null;                                // received from parent
+  videoAspect: number | null;
 }
 
 const renderLayer = (layer: StageLayer): React.CSSProperties => {
@@ -34,7 +34,7 @@ const renderLayer = (layer: StageLayer): React.CSSProperties => {
     mixBlendMode: layer.blendMode as any,
     transform: `translate(${layer.x || 0}%, ${layer.y || 0}%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
   };
-  
+
   if (layer.type === 'color') {
     style.backgroundColor = layer.content;
   } else if (layer.type === 'gradient' && layer.gradient) {
@@ -53,23 +53,37 @@ const renderLayer = (layer: StageLayer): React.CSSProperties => {
 };
 
 export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
-  isVerticalLayout, isPlaying, togglePlayPause, isMaximizedVideo, setIsMaximizedVideo,
-  mediaUrl, mediaElementRef, mediaPortalRef, currentTime, mediaDuration, handleSeek,
-  activeFile, currentSubtitleText,
-  stageStyle, lyricTextStyle, subtitleTextStyle, overlayMode,
+  isVerticalLayout,
+  isPlaying,
+  togglePlayPause,
+  isMaximizedVideo,
+  setIsMaximizedVideo,
+  mediaUrl,
+  mediaElementRef,
+  mediaPortalRef,
+  currentTime,
+  mediaDuration,
+  handleSeek,
+  activeFile,
+  currentSubtitleText,
+  stageStyle,
+  lyricTextStyle,
+  subtitleTextStyle,
+  overlayMode,
   videoAspect,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const progressFillRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
   const pointerIdRef = useRef<number | null>(null);
-  
+
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
   const [backgroundVideoUrl, setBackgroundVideoUrl] = useState<string | null>(null);
 
   const isVideo = !!activeFile && activeFile.type.startsWith('video');
   const isAudioFile = !!activeFile && activeFile.type.startsWith('audio');
 
+  // Load background video from the stage layers when an audio file is active
   useEffect(() => {
     if (!isAudioFile) {
       setBackgroundVideoUrl(null);
@@ -83,6 +97,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   }, [stageStyle.layers, isAudioFile]);
 
+  // Sync background video play/pause with main transport
   useEffect(() => {
     if (!backgroundVideoRef.current || !backgroundVideoUrl) return;
     const video = backgroundVideoRef.current;
@@ -93,6 +108,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   }, [isPlaying, backgroundVideoUrl]);
 
+  // Sync background video currentTime with main timeline
   useEffect(() => {
     if (!backgroundVideoRef.current || !backgroundVideoUrl || !isAudioFile) return;
     const video = backgroundVideoRef.current;
@@ -101,7 +117,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   }, [currentTime, backgroundVideoUrl, isAudioFile]);
 
-  const formatTime = (t: number) => {
+  const formatTimeDisplay = (t: number) => {
     if (!isFinite(t) || isNaN(t)) return '0:00';
     const minutes = Math.floor(t / 60);
     const seconds = Math.floor(t % 60);
@@ -144,15 +160,31 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
 
   const onSeekBarKeyDown = (e: React.KeyboardEvent) => {
     if (!mediaDuration) return;
-    if (e.key === 'ArrowLeft') { handleSeek(currentTime - 5); e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { handleSeek(currentTime + 5); e.preventDefault(); }
-    else if (e.key === 'Home') { handleSeek(0); e.preventDefault(); }
-    else if (e.key === 'End') { handleSeek(mediaDuration); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') {
+      handleSeek(currentTime - 5);
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight') {
+      handleSeek(currentTime + 5);
+      e.preventDefault();
+    } else if (e.key === 'Home') {
+      handleSeek(0);
+      e.preventDefault();
+    } else if (e.key === 'End') {
+      handleSeek(mediaDuration);
+      e.preventDefault();
+    }
   };
 
-  // ── Text style & animation ──
+  const handleSeekBackward = () => {
+    handleSeek(Math.max(0, currentTime - 1));
+  };
+  const handleSeekForward = () => {
+    handleSeek(Math.min(mediaDuration, currentTime + 1));
+  };
+
+  // --- Text overlay styles ---
   const textStyle = overlayMode === 'lyrics' ? lyricTextStyle : subtitleTextStyle;
-  const stageAspectRatio = getAspectRatio(stageStyle);
+  const stageAspectRatio = getAspectRatio(stageStyle); // ✅ uses updated utility that respects custom dimensions
 
   const animClass =
     (textStyle as any).animation && (textStyle as any).animation !== 'none'
@@ -204,9 +236,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     ...getBgStyle(),
   };
 
-  const handleSeekBackward = () => { handleSeek(Math.max(0, currentTime - 1)); };
-  const handleSeekForward = () => { handleSeek(Math.min(mediaDuration, currentTime + 1)); };
-
   const progressPercent = mediaDuration > 0 ? (currentTime / mediaDuration) * 100 : 0;
   const visibleLayers = stageStyle.layers?.filter(l => l.visible !== false) || [];
   const showBackgroundVideo = isAudioFile && backgroundVideoUrl && !isVideo;
@@ -214,28 +243,48 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   return (
     <div className="bg-app-surface p-4 rounded-lg border border-app-border flex flex-col h-full">
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
-        <h3 className="text-xl font-semibold flex items-center"><Video className="mr-2 text-primary" /> Monitor</h3>
+        <h3 className="text-xl font-semibold flex items-center">
+          <Video className="mr-2 text-primary" /> Monitor
+        </h3>
         {!isVerticalLayout && (
-          <button onClick={() => setIsMaximizedVideo(!isMaximizedVideo)} className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color" title={isMaximizedVideo ? 'Minimize Video' : 'Maximize Video'}>
+          <button
+            onClick={() => setIsMaximizedVideo(!isMaximizedVideo)}
+            className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color"
+            title={isMaximizedVideo ? 'Minimize Video' : 'Maximize Video'}
+          >
             {isMaximizedVideo ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
         )}
       </div>
 
-      {activeFile && <p className="text-sm text-app-gray mb-2 flex-shrink-0 truncate">{activeFile.name}</p>}
+      {activeFile && (
+        <p className="text-sm text-app-gray mb-2 flex-shrink-0 truncate">{activeFile.name}</p>
+      )}
 
       <div className="w-full flex-grow flex items-center justify-center min-h-0 mx-auto">
-        <div className="relative overflow-hidden bg-black rounded-lg" style={{ height: '100%', width: 'auto', aspectRatio: isVideo ? (videoAspect || stageAspectRatio) : stageAspectRatio }}>
+        <div
+          className="relative overflow-hidden bg-black rounded-lg"
+          style={{
+            height: '100%',
+            width: 'auto',
+            aspectRatio: isVideo ? videoAspect || stageAspectRatio : stageAspectRatio,
+          }}
+        >
+          {/* Background and stage layers */}
           <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0" style={{ backgroundColor: stageStyle.backgroundColor || '#000000' }} />
-            {visibleLayers.map((layer) => (
+            <div
+              className="absolute inset-0"
+              style={{ backgroundColor: stageStyle.backgroundColor || '#000000' }}
+            />
+            {visibleLayers.map(layer => (
               <div key={layer.id} style={renderLayer(layer)} />
             ))}
           </div>
 
-          {/* Portal target – the actual <video> element will be injected here by the parent */}
+          {/* Portal target – the actual <video> element will be injected here */}
           <div ref={mediaPortalRef} className="absolute inset-0 z-10" />
 
+          {/* Optional background video for audio files */}
           {showBackgroundVideo && (
             <video
               ref={backgroundVideoRef}
@@ -247,7 +296,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             />
           )}
 
-          {/* Audio file placeholder – now darker */}
+          {/* Audio file placeholder when no background video */}
           {isAudioFile && !showBackgroundVideo && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50">
               <FileAudio size={48} className="text-primary mb-4" />
@@ -266,45 +315,60 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       </div>
 
       <div className="flex justify-center items-center space-x-4 mt-4 flex-shrink-0">
-        <button onClick={handleSeekBackward} className="p-2 rounded-full hover:text-primary transition-colors" title="1s back">
+        <button
+          onClick={handleSeekBackward}
+          className="p-2 rounded-full hover:text-primary transition-colors"
+          title="1s back"
+        >
           <ChevronLeft size={22} strokeWidth={1.5} />
         </button>
-        <button onClick={togglePlayPause} className="p-2 rounded-full hover:text-primary transition-colors" title={isPlaying ? 'Pause' : 'Play'}>
+        <button
+          onClick={togglePlayPause}
+          className="p-2 rounded-full hover:text-primary transition-colors"
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
           {isPlaying ? <Pause size={22} strokeWidth={1.5} /> : <Play size={22} strokeWidth={1.5} />}
         </button>
-        <button onClick={handleSeekForward} className="p-2 rounded-full hover:text-primary transition-colors" title="1s forward">
+        <button
+          onClick={handleSeekForward}
+          className="p-2 rounded-full hover:text-primary transition-colors"
+          title="1s forward"
+        >
           <ChevronRight size={22} strokeWidth={1.5} />
         </button>
       </div>
 
       {isMaximizedVideo && mediaDuration > 0 && (
         <div className="flex items-center w-full mt-4 flex-shrink-0 space-x-2">
-          <span className="text-xs text-app-gray w-10 text-right">{formatTime(currentTime)}</span>
-          <div 
-            ref={containerRef} 
-            role="slider" 
-            aria-valuemin={0} 
-            aria-valuemax={mediaDuration} 
-            aria-valuenow={currentTime} 
-            tabIndex={0} 
-            onKeyDown={onSeekBarKeyDown} 
-            onPointerDown={onPointerDownTrack} 
-            className="relative flex-grow h-3 bg-app-gray-light rounded-full select-none cursor-pointer" 
+          <span className="text-xs text-app-gray w-10 text-right">
+            {formatTimeDisplay(currentTime)}
+          </span>
+          <div
+            ref={containerRef}
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={mediaDuration}
+            aria-valuenow={currentTime}
+            tabIndex={0}
+            onKeyDown={onSeekBarKeyDown}
+            onPointerDown={onPointerDownTrack}
+            className="relative flex-grow h-3 bg-app-gray-light rounded-full select-none cursor-pointer"
             style={{ touchAction: 'none' }}
           >
-            <div 
-              ref={progressFillRef} 
-              className="absolute top-0 left-0 h-full bg-primary rounded-full z-10" 
-              style={{ width: `${progressPercent}%` }} 
+            <div
+              ref={progressFillRef}
+              className="absolute top-0 left-0 h-full bg-primary rounded-full z-10"
+              style={{ width: `${progressPercent}%` }}
             />
-            <div 
-              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md z-20" 
-              style={{ left: `calc(${progressPercent}% - 8px)` }} 
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md z-20"
+              style={{ left: `calc(${progressPercent}% - 8px)` }}
             />
           </div>
-          <span className="text-xs text-app-gray w-10">{formatTime(mediaDuration)}</span>
+          <span className="text-xs text-app-gray w-10">{formatTimeDisplay(mediaDuration)}</span>
         </div>
       )}
     </div>
   );
 };
+

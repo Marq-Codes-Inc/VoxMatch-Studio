@@ -15,9 +15,9 @@ interface ModalProps {
 const sizeClasses: Record<ModalSize, string> = {
   sm: 'w-[95vw] max-w-[400px]',
   md: 'w-[95vw] max-w-[640px]',
-  lg: 'w-[95vw] max-w-[960px]',      // increased from 800px
-  xl: 'w-[95vw] max-w-[1200px]',     // increased from 1000px
-  '2xl': 'w-[98vw] max-w-[1400px]',  // new extra‑large
+  lg: 'w-[95vw] max-w-[960px]',
+  xl: 'w-[95vw] max-w-[1200px]',
+  '2xl': 'w-[98vw] max-w-[1400px]',
   full: 'w-[98vw] max-w-[1600px]',
   stage: 'w-[98vw] max-w-[1800px]',
 };
@@ -110,7 +110,7 @@ export const Modal: React.FC<ModalProps> = ({
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1">{children}</div>
+        <div className="overflow-hidden flex-1 flex flex-col">{children}</div>
       </div>
     </div>
   );

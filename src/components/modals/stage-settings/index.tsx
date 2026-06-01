@@ -1,7 +1,7 @@
 // src/components/modals/stage-settings/index.tsx
 import React, { useState, useCallback } from 'react';
 import { StageStyle } from '../../../types/types';
-import { Layers, Save, Check, Settings, Monitor } from 'lucide-react';
+import { Layers, Save, Settings, Monitor } from 'lucide-react';
 import { Dropdown } from '../../ui/Dropdown';
 import { ASPECT_RATIO_OPTIONS } from './constants';
 import { LayerEditor } from './components/LayerEditor';
@@ -38,7 +38,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
       blendMode: 'normal',
       visible: true,
       name: 'Background',
-      locked: true  // Background layer is locked by default
+      locked: true
     }
   ]);
   
@@ -56,7 +56,6 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
   const [customHeight, setCustomHeight] = useState(stageStyle.customHeight || 1080);
   const [showSafeArea, setShowSafeArea] = useState(stageStyle.showSafeArea || false);
   const [backgroundColor, setBackgroundColor] = useState(stageStyle.backgroundColor || '#000000');
-  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSave = useCallback(() => {
     setStageStyle({
@@ -68,9 +67,10 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
       showSafeArea,
       backgroundColor,
     });
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-  }, [layers, aspectRatio, customWidth, customHeight, showSafeArea, backgroundColor, stageStyle, setStageStyle]);
+    
+    // Automatically close the modal immediately without delay to prevent race conditions
+    onClose?.();
+  }, [layers, aspectRatio, customWidth, customHeight, showSafeArea, backgroundColor, stageStyle, setStageStyle, onClose]);
 
   const getAspectRatioValue = (ratio: string): number => {
     const ratios: Record<string, number> = {
@@ -85,11 +85,12 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden w-full">
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Panel - Layer List */}
         <div className="w-80 flex-shrink-0 border-r border-app-border bg-app-gray-dark/20 flex flex-col overflow-hidden">
-          <div className="flex-shrink-0 p-4 border-b border-app-border">
+          {/* Fixed Header */}
+          <div className="flex-shrink-0 p-4 border-b border-app-border bg-app-surface z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Layers size={18} className="text-primary" />
@@ -102,6 +103,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
             </div>
           </div>
           
+          {/* Scrollable Layers Content */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-2">
               {layers.map((layer, index) => (
@@ -136,13 +138,15 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
         
         {/* Right Panel - Stage Settings */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-shrink-0 p-4 border-b border-app-border bg-app-gray-dark/10">
+          {/* Fixed Header */}
+          <div className="flex-shrink-0 p-4 border-b border-app-border bg-app-gray-dark/10 z-10">
             <div className="flex items-center gap-2">
               <Monitor size={18} className="text-primary" />
               <h3 className="text-sm font-semibold text-app-text">Stage Configuration</h3>
             </div>
           </div>
           
+          {/* Scrollable Settings Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-2xl mx-auto space-y-6">
               {/* Stage Preview */}
@@ -236,14 +240,8 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
         </div>
       </div>
       
-      {/* Footer */}
-      <div className="flex-shrink-0 border-t border-app-border p-4 flex items-center justify-end gap-3 bg-app-gray-dark/5">
-        {showSuccess && (
-          <div className="flex items-center gap-2 text-green-500 text-sm animate-pulse">
-            <Check size={16} />
-            Settings applied successfully!
-          </div>
-        )}
+      {/* Fixed Footer – non-scrollable layout boundary */}
+      <div className="flex-shrink-0 border-t border-app-border p-4 flex items-center justify-end gap-3 bg-app-surface z-10">
         <button
           onClick={onClose}
           className="px-4 py-2 rounded-md bg-app-gray-light text-app-text hover:bg-app-gray transition-colors text-sm"
@@ -263,3 +261,4 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
 };
 
 export default StageSettingsContent;
+

@@ -223,7 +223,7 @@ export const SettingsModalContent: React.FC<SettingsModalContentProps> = ({
   activeSection
 }) => {
   // State for local settings
-  const [saveLocation, setSaveLocation] = useState('C:/Users/YourName/Documents/VoxMatch autosave');
+  const [saveLocation, setSaveLocation] = useState('C:/Users/MARQ/Documents/VoxMatch autosave');
   const [autoSaveFrequency, setAutoSaveFrequency] = useState(2);
   const [checkUpdates, setCheckUpdates] = useState(true);
 
@@ -317,7 +317,7 @@ export const SettingsModalContent: React.FC<SettingsModalContentProps> = ({
                 onChange={(e) => setSaveLocation(e.target.value)}
                 className="flex-1 px-4 py-2.5 bg-app-input-bg border border-app-border rounded-md text-app-text text-sm focus:border-primary outline-none transition-none"
                 style={{ transition: 'none' }}
-                placeholder="e.g., C:/Users/YourName/Documents/VoxMatch autosave"
+                placeholder="C:/Users/MARQ/Documents/VoxMatch autosave"
               />
               <button
                 type="button"

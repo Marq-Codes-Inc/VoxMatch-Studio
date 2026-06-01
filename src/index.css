@@ -132,7 +132,6 @@ button:active {
   cursor: pointer;
 }
 
-/* Slimmer version for specific lists */
 .lyrics-list-scrollbar::-webkit-scrollbar { 
   width: 4px; 
   height: 4px; 
@@ -272,3 +271,4 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
   white-space: nowrap;
   animation: text-typewriter 1s steps(30, end) both;
 }
+

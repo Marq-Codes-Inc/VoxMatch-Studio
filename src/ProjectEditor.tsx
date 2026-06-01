@@ -161,7 +161,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     await onFileActivate(file);
   }, [onFileActivate]);
 
-  // Handle video metadata loaded – updates aspect ratio
+  // Handle video metadata loaded
   const handleVideoLoadedMetadata = useCallback(() => {
     const video = mediaElementRef.current;
     if (video && video.videoWidth && video.videoHeight) {
@@ -375,7 +375,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           activeFileId={activeFileId}
         />
 
-        {/* Modals – unchanged */}
+        {/* Modals */}
         <Modal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} title="About VoxMatch Studio">
           <AboutModalContent />
         </Modal>

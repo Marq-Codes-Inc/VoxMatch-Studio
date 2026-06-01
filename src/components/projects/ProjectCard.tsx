@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mic, Type, Clock, Film, Music, Trash2 } from 'lucide-react';
 import { VoxMatchProject } from '../../types/types';
+import { DeleteProjectModal } from '../modals/DeleteProjectModal';
 
 interface ProjectCardProps {
   project: VoxMatchProject;
@@ -67,34 +68,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, onDel
         </div>
       </div>
 
-      {/* Delete Confirmation (inline modal) */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-app-surface rounded-xl p-6 max-w-md w-full border border-app-border">
-            <h3 className="text-lg font-semibold text-app-text mb-3">Delete Project</h3>
-            <p className="text-app-gray mb-6">
-              Are you sure you want to delete "{project.name}"? This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-5 py-2.5 text-app-text-secondary hover:text-app-text transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onDelete(project.id);
-                  setShowDeleteConfirm(false);
-                }}
-                className="px-5 py-2.5 bg-danger text-white rounded-lg hover:bg-danger/80 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteProjectModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => onDelete(project.id)}
+        projectName={project.name}
+      />
     </>
   );
 };

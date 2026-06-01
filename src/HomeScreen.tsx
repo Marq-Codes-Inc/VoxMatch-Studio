@@ -1,3 +1,4 @@
+// src/HomeScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Plus,
@@ -9,6 +10,10 @@ import {
   List,
   Film,
   Music,
+  Sliders,
+  Volume2,
+  Type,
+  Keyboard,
 } from 'lucide-react';
 import { VoxMatchProject, AppSettings } from './types/types';
 import { Modal } from './components/ui/Modal';
@@ -25,8 +30,8 @@ interface HomeScreenProps {
   onOpenProject: (projectId: string) => void;
   onOpenProjectFile: () => void;
   onDeleteProject: (projectId: string) => void;
-  settings?: AppSettings;
-  handleSettingChange?: (name: string, value: string | boolean | number | any) => void;
+  settings: AppSettings;                    // Required now
+  handleSettingChange: (name: string, value: string | boolean | number | any) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -35,19 +40,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenProject,
   onOpenProjectFile,
   onDeleteProject,
-  settings = {
-    theme: 'dark',
-    primaryColor: '#046466',
-    autoSave: false,
-    defaultReadingSpeed: 'normal',
-    timing: {
-      baseDurationPerChar: 0.08,
-      minClipDuration: 1.0,
-      maxClipDuration: 5.0,
-      pauseBetweenClips: 0.2,
-    },
-  } as AppSettings,
-  handleSettingChange = (name, value) => console.log('Setting changed:', name, value),
+  settings,
+  handleSettingChange,
 }) => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -59,6 +53,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [helpActiveSection, setHelpActiveSection] = useState('quick-start');
   const [helpAccordion, setHelpAccordion] = useState<string | null>(null);
 
+  // Apply theme class based on settings
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('theme-dark', 'theme-light', 'theme-system');
@@ -69,7 +64,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     } else {
       root.classList.add('theme-dark');
     }
-  }, [settings.theme]);
+    // Also apply data-theme attribute for CSS variables
+    root.setAttribute('data-theme', settings.theme || 'dark');
+    // Apply primary color
+    if (settings.primaryColor) {
+      root.style.setProperty('--primary', settings.primaryColor);
+    }
+  }, [settings.theme, settings.primaryColor]);
 
   const toggleHelpAccordion = (section: string) => {
     setHelpAccordion((prev) => (prev === section ? null : section));
@@ -79,12 +80,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     const date = new Date(timestamp);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -126,7 +125,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="mb-6">
               <h1 className="text-3xl font-bold text-app-text mb-2">Projects</h1>
             </div>
-
             <div className="flex items-center justify-between mb-6">
               <div className="flex gap-3">
                 <button
@@ -144,7 +142,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   Open Project
                 </button>
               </div>
-
               <div className="flex items-center gap-1 bg-app-gray-dark rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -181,11 +178,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </div>
                 <div className="text-app-gray text-sm">{totalProjects} Total</div>
               </div>
-
-              <div
-                className="flex-1 overflow-y-auto pr-2 min-h-0"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-              >
+              <div className="flex-1 overflow-y-auto pr-2 min-h-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <style>{`div::-webkit-scrollbar { display: none; }`}</style>
                 {viewMode === 'grid' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
@@ -237,13 +230,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </main>
 
-      {/* Modals using reusable Modal component */}
-      <Modal
-        isOpen={showNewProjectModal}
-        onClose={() => setShowNewProjectModal(false)}
-        title="Create New Project"
-        size="lg"
-      >
+      {/* Modals */}
+      <Modal isOpen={showNewProjectModal} onClose={() => setShowNewProjectModal(false)} title="Create New Project" size="lg">
         <NewProjectModalContent
           onClose={() => setShowNewProjectModal(false)}
           onCreate={(name, mode) => {
@@ -253,12 +241,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         />
       </Modal>
 
-      <Modal
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        title="Settings"
-        size="xl"
-      >
+      <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} title="Settings" size="2xl">
         <SettingsModalWithSections
           settings={settings}
           handleSettingChange={handleSettingChange}
@@ -267,12 +250,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         />
       </Modal>
 
-      <Modal
-        isOpen={showHelpModal}
-        onClose={() => setShowHelpModal(false)}
-        title="Help"
-        size="xl"   // larger for Help
-      >
+      <Modal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} title="Help" size="2xl">
         <HelpModalWithSections
           activeSection={helpActiveSection}
           onSectionChange={setHelpActiveSection}
@@ -281,19 +259,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         />
       </Modal>
 
-      <Modal
-        isOpen={showAboutModal}
-        onClose={() => setShowAboutModal(false)}
-        title="About VoxMatch Studio"
-        size="md"
-      >
+      <Modal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} title="About VoxMatch Studio" size="md">
         <AboutModalContent />
       </Modal>
     </div>
   );
 };
 
-// Internal sub-components for modal navigation
+// ==================== Internal Components ====================
+
 const SettingsModalWithSections: React.FC<{
   settings: AppSettings;
   handleSettingChange: (name: string, value: any) => void;
@@ -301,28 +275,31 @@ const SettingsModalWithSections: React.FC<{
   onSectionChange: (section: string) => void;
 }> = ({ settings, handleSettingChange, activeSection, onSectionChange }) => {
   const sections = [
-    { id: 'general', label: 'General' },
-    { id: 'audio-video', label: 'Audio/Video' },
-    { id: 'lyrics-subtitles', label: 'Lyrics/Subtitles' },
-    { id: 'shortcuts', label: 'Shortcuts' },
+    { id: 'general', label: 'General', icon: Sliders },
+    { id: 'audio-video', label: 'Audio & Video', icon: Volume2 },
+    { id: 'lyrics-subtitles', label: 'Lyrics & Subtitles', icon: Type },
+    { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
   ];
 
   return (
-    <div className="flex h-full">
-      <div className="w-48 border-r border-app-border p-3 space-y-1 flex-shrink-0">
+    <div className="flex h-[calc(90vh-100px)]">
+      <div className="w-64 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
         {sections.map((section) => (
           <button
             key={section.id}
             onClick={() => onSectionChange(section.id)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-              activeSection === section.id ? 'bg-primary text-white' : 'text-app-text hover:bg-app-gray-light'
+            className={`w-full flex items-center p-3 rounded-md text-left ${
+              activeSection === section.id
+                ? 'bg-primary text-white'
+                : 'text-app-text hover:bg-app-gray-light'
             }`}
           >
+            <section.icon size={18} className="mr-3" />
             {section.label}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 p-6 overflow-y-auto">
         <SettingsModalContent
           settings={settings}
           handleSettingChange={handleSettingChange}
@@ -347,8 +324,8 @@ const HelpModalWithSections: React.FC<{
   ];
 
   return (
-    <div className="flex h-full">
-      <div className="w-48 border-r border-app-border p-3 space-y-1 flex-shrink-0">
+    <div className="flex h-[calc(90vh-100px)]">
+      <div className="w-64 border-r border-app-border p-4 space-y-2 overflow-y-auto">
         {sections.map((section) => (
           <button
             key={section.id}
@@ -371,4 +348,3 @@ const HelpModalWithSections: React.FC<{
     </div>
   );
 };
-

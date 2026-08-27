@@ -28,17 +28,13 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 
-// ============================================
 // Constants
-// ============================================
 
 const APP_NAME = 'VoxMatch Studio';
 const APP_ID = 'com.voxmatch.studio';
 const ICON_PATH = path.join(process.cwd(), 'public', 'assets', 'icon.ico');
 
-// ============================================
 // GPU/Performance Settings
-// ============================================
 
 // Disable GPU acceleration to prevent black flicker issues
 app.commandLine.appendSwitch('disable-gpu');
@@ -50,9 +46,7 @@ app.disableHardwareAcceleration();
 // Enable smooth scrolling
 app.commandLine.appendSwitch('enable-smooth-scrolling');
 
-// ============================================
 // Splash Screen
-// ============================================
 
 function createSplashScreen(): void {
   console.log('🎬 Creating splash screen...');
@@ -104,9 +98,7 @@ function createSplashScreen(): void {
   });
 }
 
-// ============================================
 // Window Management
-// ============================================
 
 function validateIconPath(): string | null {
   console.log('🔍 Checking icon path:', ICON_PATH);
@@ -273,9 +265,7 @@ function createWindow(): void {
   });
 }
 
-// ============================================
 // Application Lifecycle
-// ============================================
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -339,9 +329,7 @@ if (!gotTheLock) {
   });
 }
 
-// ============================================
 // Utility Functions
-// ============================================
 
 function getMimeTypeFromExtension(ext: string): string {
   const mimeTypes: Record<string, string> = {
@@ -370,9 +358,7 @@ function validateFilePath(filePath: string): boolean {
   }
 }
 
-// ============================================
 // Dialog IPC Handlers
-// ============================================
 
 ipcMain.handle('dialog:openFile', async (_event, options: any = {}) => {
   if (!mainWindow) {
@@ -415,9 +401,7 @@ ipcMain.handle('dialog:selectSaveLocation', async (_event, options: any = {}) =>
   return result.canceled ? null : result.filePath;
 });
 
-// ============================================
 // File Handlers
-// ============================================
 
 ipcMain.handle('file:getMetadata', async (_event, filePath: string): Promise<FileMetadata> => {
   if (!validateFilePath(filePath)) {
@@ -481,9 +465,7 @@ ipcMain.handle('project:save', async (_event, projectData: any, filePath: string
   return { success: true, path: finalPath };
 });
 
-// ============================================
 // Export Handlers
-// ============================================
 
 ipcMain.handle('export:video', async (_event, options: any = {}): Promise<SaveResult> => {
   if (!mainWindow) {
@@ -520,9 +502,7 @@ ipcMain.handle('export:subtitles', async (_event, options: any = {}): Promise<Sa
   return { success: !result.canceled, path: result.filePath };
 });
 
-// ============================================
 // DevTools IPC Handler
-// ============================================
 
 ipcMain.handle('dev:openDevTools', () => {
   if (isDev && mainWindow && !mainWindow.isDestroyed()) {
@@ -544,9 +524,7 @@ ipcMain.handle('dev:toggleDevTools', () => {
   return false;
 });
 
-// ============================================
 // App Info Handlers
-// ============================================
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);
@@ -556,9 +534,7 @@ ipcMain.handle('app:notifyReady', () => {
   return true;
 });
 
-// ============================================
 // Window Control Handlers
-// ============================================
 
 ipcMain.on('window:minimize', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -588,9 +564,7 @@ ipcMain.on('window:toggleFullscreen', () => {
   }
 });
 
-// ============================================
 // Error Handling
-// ============================================
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);

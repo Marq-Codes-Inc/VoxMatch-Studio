@@ -27,7 +27,7 @@ export function useProjectEditor(
   const [isStageSettingsModalOpen, setIsStageSettingsModalOpen] = useState(false);
   const [selectedFileInfo, setSelectedFileInfo] = useState<ImportedMediaFile | null>(null);
 
-  // ── Audio overlay toggle ───────────────────────────────
+  // Audio overlay toggle
   const [isVuOverlayEnabled, setIsVuOverlayEnabled] = useState(false);
   const toggleVuOverlay = useCallback(() => {
     setIsVuOverlayEnabled(prev => !prev);
@@ -56,9 +56,9 @@ export function useProjectEditor(
     isLeftPanelTopRowFilled: false,
   });
 
-  // ─────────────────────────────────────────────────────────
+  //
   // Sync `isSaved` from the prop.
-  // ─────────────────────────────────────────────────────────
+  //
   useEffect(() => {
     setIsProjectSaved(initialProject.isSaved);
   }, [initialProject.isSaved]);
@@ -89,9 +89,7 @@ export function useProjectEditor(
     setOpenAccordion(prev => (prev === id ? null : id));
   }, []);
 
-  // ─────────────────────────────────────────────────────────
   // Narrow deps — never depend on whole hook objects.
-  // ─────────────────────────────────────────────────────────
 
   const {
     setLoadingFileId,
@@ -108,9 +106,8 @@ export function useProjectEditor(
 
   const { loadMediaIntoTimeline, cleanupMedia, currentTime } = mediaPlayback;
 
-  // ─────────────────────────────────────────────────────────
   // Drive the overlay text from the current playhead position.
-  // ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     updateCurrentSubtitleText(currentTime);
   }, [currentTime, updateCurrentSubtitleText]);
@@ -348,7 +345,6 @@ export function useProjectEditor(
     handleSaveProjectAs,
     handleClearTimelineAll,
     formatTime,
-    // ── Audio overlay ──
     isVuOverlayEnabled,
     toggleVuOverlay,
   };

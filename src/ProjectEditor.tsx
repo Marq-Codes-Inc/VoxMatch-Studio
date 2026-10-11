@@ -218,9 +218,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     isFileInfoModalOpen ||
     isStageSettingsModalOpen;
 
-  // ─────────────────────────────────────────────────────────
   // Keep the shared VideoPreviewPanel aligned with its slot
-  // ─────────────────────────────────────────────────────────
   useLayoutEffect(() => {
     const slot = videoSlotRef.current;
     const container = containerRef.current;
@@ -694,7 +692,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             />
           )}
 
-          {/* Persistent VideoPreviewPanel — never unmounts across layout switches */}
+          {/* VideoPreviewPanel */}
           <div
             className="absolute z-10"
             style={{
@@ -863,3 +861,4 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 export const ProjectEditor: React.FC<ProjectEditorProps> = props => (
   <ProjectEditorContent {...props} />
 );
+

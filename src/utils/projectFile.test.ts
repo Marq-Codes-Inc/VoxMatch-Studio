@@ -14,9 +14,7 @@ import {
   DEFAULT_LAYOUT,
 } from '../constants/defaults';
 
-// ─────────────────────────────────────────────────────────────
 // Fixtures
-// ─────────────────────────────────────────────────────────────
 
 function makeProject(overrides: Partial<VoxMatchProject> = {}): VoxMatchProject {
   return {
@@ -56,9 +54,7 @@ function makeProject(overrides: Partial<VoxMatchProject> = {}): VoxMatchProject 
   };
 }
 
-// ─────────────────────────────────────────────────────────────
 // serializeProject
-// ─────────────────────────────────────────────────────────────
 
 describe('serializeProject', () => {
   it('produces valid JSON', () => {
@@ -101,9 +97,7 @@ describe('serializeProject', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
 // deserializeProject
-// ─────────────────────────────────────────────────────────────
 
 describe('deserializeProject', () => {
   it('round-trips a project', () => {
@@ -166,9 +160,7 @@ describe('deserializeProject', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
 // normalizeProject
-// ─────────────────────────────────────────────────────────────
 
 describe('normalizeProject', () => {
   it('is idempotent', () => {
@@ -192,9 +184,7 @@ describe('normalizeProject', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
 // ensureVxmExtension
-// ─────────────────────────────────────────────────────────────
 
 describe('ensureVxmExtension', () => {
   it('appends .vxm when missing', () => {

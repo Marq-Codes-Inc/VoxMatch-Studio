@@ -128,7 +128,7 @@ function createSplashScreen(): void {
 
   const splashPath = isDev
     ? path.join(process.cwd(), 'public', 'splash.html')
-    : path.join(process.resourcesPath, 'public', 'splash.html');
+    : path.join(__dirname, 'public', 'splash.html'); 
 
   if (fs.existsSync(splashPath)) {
     splashWindow.loadFile(splashPath).catch(err => {
@@ -136,8 +136,9 @@ function createSplashScreen(): void {
     });
   } else {
     console.error('❌ Splash screen file not found:', splashPath);
-    app.quit();
-    return;
+    // Optional: Don't quit the app if splash is missing, just skip it
+    // app.quit(); 
+    // return;
   }
 
   splashWindow.once('ready-to-show', () => splashWindow?.show());

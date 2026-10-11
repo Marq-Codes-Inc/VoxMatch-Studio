@@ -102,15 +102,13 @@ function createSplashScreen() {
     }
   });
   splashWindow.setMenu(null);
-  const splashPath = isDev ? path.join(process.cwd(), "public", "splash.html") : path.join(process.resourcesPath, "public", "splash.html");
+  const splashPath = isDev ? path.join(process.cwd(), "public", "splash.html") : path.join(__dirname, "public", "splash.html");
   if (fs.existsSync(splashPath)) {
     splashWindow.loadFile(splashPath).catch((err) => {
       console.error("\u274C Failed to load splash screen:", err);
     });
   } else {
     console.error("\u274C Splash screen file not found:", splashPath);
-    import_electron.app.quit();
-    return;
   }
   splashWindow.once("ready-to-show", () => splashWindow?.show());
   splashWindow.on("closed", () => splashWindow = null);

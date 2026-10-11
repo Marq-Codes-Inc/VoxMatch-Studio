@@ -57,9 +57,7 @@ interface SliderProps {
   label?: string;
 }
 
-// ─────────────────────────────────────────────────────────────
 // VolumeSlider — RAF-throttled to avoid update-depth warnings
-// ─────────────────────────────────────────────────────────────
 
 const VolumeSlider: React.FC<SliderProps> = ({ value, min, max, step, onChange }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -166,9 +164,7 @@ const VolumeSlider: React.FC<SliderProps> = ({ value, min, max, step, onChange }
   );
 };
 
-// ─────────────────────────────────────────────────────────────
 // ZoomLevel — RAF-throttled
-// ─────────────────────────────────────────────────────────────
 
 const ZoomLevel: React.FC<SliderProps> = ({ value, min, max, step, onChange }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -275,9 +271,7 @@ const ZoomLevel: React.FC<SliderProps> = ({ value, min, max, step, onChange }) =
   );
 };
 
-// ─────────────────────────────────────────────────────────────
 // TimelineHeader
-// ─────────────────────────────────────────────────────────────
 
 interface TimelineHeaderProps {
   undo: () => void;
@@ -407,9 +401,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({
   </div>
 );
 
-// ─────────────────────────────────────────────────────────────
 // TimeRuler
-// ─────────────────────────────────────────────────────────────
 
 const TimeRuler: React.FC<{
   mediaDuration: number;
@@ -464,9 +456,7 @@ const TimeRuler: React.FC<{
   );
 };
 
-// ─────────────────────────────────────────────────────────────
 // TrackLane / TimelineClip
-// ─────────────────────────────────────────────────────────────
 
 const TrackLane: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="absolute left-0 right-0 top-12 h-14 bg-app-gray-light/30 border border-app-border rounded-md shadow-inner">
@@ -575,9 +565,7 @@ const TimelineClip: React.FC<{
   );
 };
 
-// ─────────────────────────────────────────────────────────────
 // TimelineContextMenu
-// ─────────────────────────────────────────────────────────────
 
 const TimelineContextMenu: React.FC<{
   contextMenu: ContextMenuState;
@@ -707,9 +695,7 @@ const TimelineContextMenu: React.FC<{
   );
 };
 
-// ─────────────────────────────────────────────────────────────
 // TimelinePanel
-// ─────────────────────────────────────────────────────────────
 
 export interface TimelinePanelProps {
   currentTime: number;

@@ -43,7 +43,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const tempMediaElementRef = useRef<HTMLMediaElement | null>(null);
 
-  // Playhead tracking — decoupled from React state
+  // Playhead tracking
   const rafRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const currentTimeRef = useRef(0);
@@ -68,16 +68,14 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     return null;
   }, [activeMediaType]);
 
-  /** True if the audio graph is currently wired up. */
+  /* True if the audio graph is currently wired up. */
   const isGraphWired = useCallback((): boolean => {
     return (
       graphWiredElementRef.current !== null && sourceNodeRef.current !== null
     );
   }, []);
 
-  // ─────────────────────────────────────────────────────────
-  // Playhead tracking — RAF reads, interval pushes to React
-  // ─────────────────────────────────────────────────────────
+  // Playhead tracking
 
   const startPlayheadTracking = useCallback(() => {
     if (rafRef.current !== null) return;
@@ -119,9 +117,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     return stopPlayheadTracking;
   }, [isPlaying, isMediaLoaded, startPlayheadTracking, stopPlayheadTracking]);
 
-  // ─────────────────────────────────────────────────────────
   // Audio graph
-  // ─────────────────────────────────────────────────────────
 
   const cancelRetryChain = useCallback(() => {
     retryChainCancelledRef.current = true;
@@ -134,7 +130,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
   const setupAudioApi = useCallback(() => {
     const mediaElement = getActiveMediaElement();
     if (!mediaElement) {
-      // Silent — retries will find it later
+      // Retries will find it later
       return;
     }
 
@@ -186,7 +182,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
       graphWiredElementRef.current = mediaElement;
       console.log('[Audio] Graph connected. ctx.state =', audioCtx.state);
 
-      // SUCCESS — cancel any pending retries
+      // SUCCESS: cancel any pending retries
       cancelRetryChain();
     } catch (err: any) {
       if (err?.name === 'InvalidStateError') {
@@ -200,9 +196,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     }
   }, [getActiveMediaElement, cancelRetryChain]);
 
-  /**
-   * Schedule retries. Stops immediately once the graph is wired.
-   */
+  /* Schedule retries. Stops immediately once the graph is wired. */
   const scheduleAudioRetries = useCallback(() => {
     // Cancel any previous chain
     if (retryTimeoutRef.current !== null) {
@@ -232,9 +226,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     retryTimeoutRef.current = window.setTimeout(tryNext, delays[0]);
   }, [setupAudioApi, isGraphWired]);
 
-  // ─────────────────────────────────────────────────────────
   // Media element events
-  // ─────────────────────────────────────────────────────────
 
   const handleTimeUpdate = useCallback(() => {
     const mediaElement = getActiveMediaElement();
@@ -265,9 +257,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     if (mediaElement) mediaElement.currentTime = 0;
   }, [stopPlayheadTracking, getActiveMediaElement]);
 
-  // ─────────────────────────────────────────────────────────
   // Cleanup
-  // ─────────────────────────────────────────────────────────
 
   const cleanupMedia = useCallback(() => {
     if (isCleaningUpRef.current) return;
@@ -316,9 +306,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     handleMediaEnded,
   ]);
 
-  // ─────────────────────────────────────────────────────────
   // Attach listeners + start audio retry chain
-  // ─────────────────────────────────────────────────────────
 
   const setupMediaPlayback = useCallback((file: ImportedMediaFile) => {
     if (isCleaningUpRef.current) return;
@@ -353,9 +341,7 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     handleMediaEnded,
   ]);
 
-  // ─────────────────────────────────────────────────────────
   // Load media into the timeline
-  // ─────────────────────────────────────────────────────────
 
   const loadMediaIntoTimeline = useCallback(async (file: ImportedMediaFile): Promise<ImportedMediaFile> => {
     cleanupMedia();
@@ -511,4 +497,3 @@ export function useMediaPlayback(): UseMediaPlaybackReturn {
     getActiveMediaElement, cleanupMedia,
   };
 }
-

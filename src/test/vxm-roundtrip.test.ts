@@ -13,15 +13,6 @@ import {
   DEFAULT_LAYOUT,
 } from '../constants/defaults';
 
-/**
- * Simulates the full user workflow:
- *   1. User creates project with media + lyrics
- *   2. Saves As → disk write (mocked)
- *   3. App closes
- *   4. User re-opens .vxm from disk → deserialized project
- *   5. Media is re-attached at runtime (url/loaded/file repopulated)
- */
-
 function simulateDiskWrite(project: VoxMatchProject): string {
   // Exactly what project:save does on disk
   return serializeProject(project);
@@ -125,3 +116,4 @@ describe('.vxm end-to-end round trip', () => {
     expect(() => simulateDiskRead(missing, '/x.vxm')).toThrow(/missing "id"/);
   });
 });
+

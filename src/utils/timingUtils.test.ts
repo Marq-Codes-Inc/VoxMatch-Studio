@@ -6,9 +6,7 @@ import {
   DEFAULT_CONFIG,
 } from './timingUtils';
 
-// ─────────────────────────────────────────────────────────────
 // calculateSmartTiming
-// ─────────────────────────────────────────────────────────────
 
 describe('calculateSmartTiming', () => {
   it('returns one clip per line', () => {
@@ -110,9 +108,7 @@ describe('calculateSmartTiming', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
 // getTimingConfigForLanguage
-// ─────────────────────────────────────────────────────────────
 
 describe('getTimingConfigForLanguage', () => {
   it('returns known multipliers', () => {
@@ -125,9 +121,7 @@ describe('getTimingConfigForLanguage', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
 // DEFAULT_CONFIG
-// ─────────────────────────────────────────────────────────────
 
 describe('DEFAULT_CONFIG', () => {
   it('has sane defaults', () => {

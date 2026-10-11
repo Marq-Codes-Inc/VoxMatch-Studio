@@ -1,3 +1,4 @@
+// src/hooks/useProjectState.ts
 import { useState, useCallback } from 'react';
 import { AppSettings, LyricLine, ImportedMediaFile, TimelineMarker, StageStyle, TextStyle } from '../types/types';
 import { VoxMatchProject } from '../types/project';
@@ -19,12 +20,12 @@ export interface UseProjectStateReturn {
   lyricTextStyle: TextStyle;
   subtitleTextStyle: TextStyle;
   currentSubtitleText: string | null;
-  
+
   canUndo: boolean;
   canRedo: boolean;
   activeFile: ImportedMediaFile | null;
   timelineData: LyricLine[];
-  
+
   setActiveLeftPanelTab: (tab: 'subtitles' | 'lyrics') => void;
   setActiveSubTab: (tab: 'edit' | 'styles' | 'templates') => void;
   setLyrics: React.Dispatch<React.SetStateAction<LyricLine[]>>;
@@ -40,7 +41,7 @@ export interface UseProjectStateReturn {
   setLyricTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
   setSubtitleTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
   setCurrentSubtitleText: (text: string | null) => void;
-  
+
   handleLyricChange: (id: string, field: 'text' | 'startTime' | 'endTime', value: string | number) => void;
   handleSubtitleChange: (id: string, field: 'text' | 'startTime' | 'endTime', value: string | number) => void;
   handleAddLyric: (currentTime: number) => void;
@@ -100,7 +101,6 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
-  // save current state as history entry before mutation
   const pushHistory = useCallback((newSubtitles: LyricLine[], newLyrics: LyricLine[]) => {
     setHistory(prev => {
       const cleanPrev = prev.slice(0, historyIndex + 1);
@@ -108,8 +108,6 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     });
     setHistoryIndex(prev => prev + 1);
   }, [historyIndex]);
-
-  // ─── handlers ─────────────────────────────────────────
 
   const handleLyricChange = useCallback((id: string, field: 'text' | 'startTime' | 'endTime', value: string | number) => {
     setLyrics(prev => prev.map(line => line.id === id ? { ...line, [field]: value } : line));
@@ -128,7 +126,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
         endTime: currentTime + 2,
       };
       const updated = [...prev, newLine];
-      pushHistory(clone(updated), subtitles); // preserve subtitles
+      pushHistory(clone(updated), subtitles);
       return updated;
     });
   }, [subtitles, pushHistory]);
@@ -264,7 +262,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     return newFiles;
   }, []);
 
-  const handleOpenFile = useCallback(async () => {}, []); // handled by parent
+  const handleOpenFile = useCallback(async () => {}, []);
 
   const handleClearTimelineAll = useCallback(() => {
     if (activeLeftPanelTab === 'subtitles') {
@@ -296,25 +294,32 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     setMarkers(prev => [...prev, { id: generateId(), time, label }]);
   }, []);
 
-  // ✅ FIX: Keep loaded state and pass regenerated url back into state
   const updateFileAfterLoad = useCallback((loadedFile: ImportedMediaFile) => {
-    setImportedFiles(prev => prev.map(f => f.id === loadedFile.id ? { 
-      ...f, 
+    setImportedFiles(prev => prev.map(f => f.id === loadedFile.id ? {
+      ...f,
       duration: loadedFile.duration,
       loaded: true,
       url: loadedFile.url
     } : f));
   }, []);
 
-  const updateCurrentSubtitleText = useCallback((currentTime: number) => {
-    const activeSub = subtitles.find(sub => currentTime >= sub.startTime && currentTime <= sub.endTime);
-    setCurrentSubtitleText(activeSub?.text || null);
-  }, [subtitles]);
+  // ─────────────────────────────────────────────────────────
+  // Compute the current overlay text from whichever track is
+  // active (lyrics or subtitles). Called from useProjectEditor on
+  // every playhead move.
+  // ─────────────────────────────────────────────────────────
+  const updateCurrentSubtitleText = useCallback(
+    (currentTime: number) => {
+      const source = activeLeftPanelTab === 'lyrics' ? lyrics : subtitles;
+      const activeClip = source.find(
+        clip => currentTime >= clip.startTime && currentTime <= clip.endTime,
+      );
+      setCurrentSubtitleText(activeClip?.text || null);
+    },
+    [activeLeftPanelTab, lyrics, subtitles],
+  );
 
-  // real activation – sets active ID, loading state cleared by parent
   const onFileActivate = useCallback(async (file: ImportedMediaFile): Promise<ImportedMediaFile> => {
-    // This will be used inside useProjectEditor to coordinate with media playback
-    // For now we just return the file (the actual media loading happens externally)
     return file;
   }, []);
 

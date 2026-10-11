@@ -1,7 +1,23 @@
 // src/components/panels/VideoPreviewPanel.tsx
 import React, { useRef, useEffect, useState } from 'react';
-import { Video, Maximize, Minimize, FileAudio, ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react';
-import { ImportedMediaFile, AppSettings, StageStyle, TextStyle, StageLayer, GradientStop } from '../../types/types';
+import {
+  Video,
+  Maximize,
+  Minimize,
+  FileAudio,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+} from 'lucide-react';
+import {
+  ImportedMediaFile,
+  AppSettings,
+  StageStyle,
+  TextStyle,
+  StageLayer,
+  GradientStop,
+} from '../../types/types';
 import { getAspectRatio, hexToRgb, clamp01 } from '../../utils/utils';
 
 interface VideoPreviewPanelProps {
@@ -12,7 +28,6 @@ interface VideoPreviewPanelProps {
   setIsMaximizedVideo: (isMax: boolean) => void;
   mediaUrl: string | null;
   mediaElementRef: React.RefObject<HTMLVideoElement>;
-  mediaPortalRef: React.RefObject<HTMLDivElement>;
   currentTime: number;
   mediaDuration: number;
   handleSeek: (time: number) => void;
@@ -24,6 +39,7 @@ interface VideoPreviewPanelProps {
   subtitleTextStyle: TextStyle;
   overlayMode: 'lyrics' | 'subtitles';
   videoAspect: number | null;
+  isMediaLoaded: boolean;
 }
 
 const renderLayer = (layer: StageLayer): React.CSSProperties => {
@@ -32,17 +48,24 @@ const renderLayer = (layer: StageLayer): React.CSSProperties => {
     inset: 0,
     opacity: layer.opacity ?? 1,
     mixBlendMode: layer.blendMode as any,
-    transform: `translate(${layer.x || 0}%, ${layer.y || 0}%) scale(${layer.scale || 1}) rotate(${layer.rotation || 0}deg)`,
+    transform: `translate(${layer.x || 0}%, ${layer.y || 0}%) scale(${
+      layer.scale || 1
+    }) rotate(${layer.rotation || 0}deg)`,
   };
 
   if (layer.type === 'color') {
     style.backgroundColor = layer.content;
   } else if (layer.type === 'gradient' && layer.gradient) {
     const { type, angle, stops } = layer.gradient;
-    const stopString = stops.map((s: GradientStop) => `${s.color} ${s.position}%`).join(', ');
-    if (type === 'linear') style.background = `linear-gradient(${angle || 90}deg, ${stopString})`;
-    else if (type === 'radial') style.background = `radial-gradient(circle, ${stopString})`;
-    else if (type === 'conic') style.background = `conic-gradient(from ${angle || 0}deg, ${stopString})`;
+    const stopString = stops
+      .map((s: GradientStop) => `${s.color} ${s.position}%`)
+      .join(', ');
+    if (type === 'linear')
+      style.background = `linear-gradient(${angle || 90}deg, ${stopString})`;
+    else if (type === 'radial')
+      style.background = `radial-gradient(circle, ${stopString})`;
+    else if (type === 'conic')
+      style.background = `conic-gradient(from ${angle || 0}deg, ${stopString})`;
   } else if ((layer.type === 'image' || layer.type === 'video') && layer.content) {
     style.backgroundImage = `url(${layer.content})`;
     style.backgroundSize = layer.fit || 'cover';
@@ -60,7 +83,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   setIsMaximizedVideo,
   mediaUrl,
   mediaElementRef,
-  mediaPortalRef,
   currentTime,
   mediaDuration,
   handleSeek,
@@ -71,6 +93,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   subtitleTextStyle,
   overlayMode,
   videoAspect,
+  isMediaLoaded,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const progressFillRef = useRef<HTMLDivElement | null>(null);
@@ -83,13 +106,14 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   const isVideo = !!activeFile && activeFile.type.startsWith('video');
   const isAudioFile = !!activeFile && activeFile.type.startsWith('audio');
 
-  // Load background video from the stage layers when an audio file is active
   useEffect(() => {
     if (!isAudioFile) {
       setBackgroundVideoUrl(null);
       return;
     }
-    const videoLayer = stageStyle.layers?.find(l => l.type === 'video' && l.visible !== false && l.content);
+    const videoLayer = stageStyle.layers?.find(
+      l => l.type === 'video' && l.visible !== false && l.content,
+    );
     if (videoLayer && videoLayer.content) {
       setBackgroundVideoUrl(videoLayer.content);
     } else {
@@ -97,7 +121,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   }, [stageStyle.layers, isAudioFile]);
 
-  // Sync background video play/pause with main transport
   useEffect(() => {
     if (!backgroundVideoRef.current || !backgroundVideoUrl) return;
     const video = backgroundVideoRef.current;
@@ -108,7 +131,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   }, [isPlaying, backgroundVideoUrl]);
 
-  // Sync background video currentTime with main timeline
   useEffect(() => {
     if (!backgroundVideoRef.current || !backgroundVideoUrl || !isAudioFile) return;
     const video = backgroundVideoRef.current;
@@ -182,9 +204,9 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     handleSeek(Math.min(mediaDuration, currentTime + 1));
   };
 
-  // --- Text overlay styles ---
-  const textStyle = overlayMode === 'lyrics' ? lyricTextStyle : subtitleTextStyle;
-  const stageAspectRatio = getAspectRatio(stageStyle); // ✅ uses updated utility that respects custom dimensions
+  const textStyle =
+    overlayMode === 'lyrics' ? lyricTextStyle : subtitleTextStyle;
+  const stageAspectRatio = getAspectRatio(stageStyle);
 
   const animClass =
     (textStyle as any).animation && (textStyle as any).animation !== 'none'
@@ -194,7 +216,10 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   const getBgStyle = (): React.CSSProperties => {
     if (!textStyle.withBg) return {};
     const bg = textStyle.bgColor;
-    if (bg && (bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient'))) {
+    if (
+      bg &&
+      (bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient'))
+    ) {
       return { background: bg };
     }
     return {
@@ -231,12 +256,12 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     maxWidth: '100%',
     transform: `translate(${textStyle.position.x}%, ${textStyle.position.y}%)`,
     pointerEvents: 'auto',
-    opacity: currentSubtitleText ? 1 : 0,
-    transition: 'opacity 0.3s ease-in-out',
+    textShadow: '0 2px 8px rgba(0,0,0,0.85), 0 1px 2px rgba(0,0,0,0.95)',
     ...getBgStyle(),
   };
 
-  const progressPercent = mediaDuration > 0 ? (currentTime / mediaDuration) * 100 : 0;
+  const progressPercent =
+    mediaDuration > 0 ? (currentTime / mediaDuration) * 100 : 0;
   const visibleLayers = stageStyle.layers?.filter(l => l.visible !== false) || [];
   const showBackgroundVideo = isAudioFile && backgroundVideoUrl && !isVideo;
 
@@ -258,7 +283,9 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       </div>
 
       {activeFile && (
-        <p className="text-sm text-app-gray mb-2 flex-shrink-0 truncate">{activeFile.name}</p>
+        <p className="text-sm text-app-gray mb-2 flex-shrink-0 truncate">
+          {activeFile.name}
+        </p>
       )}
 
       <div className="w-full flex-grow flex items-center justify-center min-h-0 mx-auto">
@@ -267,10 +294,11 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
           style={{
             height: '100%',
             width: 'auto',
-            aspectRatio: isVideo ? videoAspect || stageAspectRatio : stageAspectRatio,
+            aspectRatio: isVideo
+              ? videoAspect || stageAspectRatio
+              : stageAspectRatio,
           }}
         >
-          {/* Background and stage layers */}
           <div className="absolute inset-0 z-0">
             <div
               className="absolute inset-0"
@@ -281,10 +309,21 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             ))}
           </div>
 
-          {/* Portal target – the actual <video> element will be injected here */}
-          <div ref={mediaPortalRef} className="absolute inset-0 z-10" />
+          <video
+            ref={mediaElementRef}
+            src={isMediaLoaded ? mediaUrl || undefined : undefined}
+            onLoadedMetadata={() => {
+              const video = mediaElementRef.current;
+              if (video && video.videoWidth && video.videoHeight) {
+                // Parent listens via context — aspect handled there
+              }
+            }}
+            className="absolute inset-0 w-full h-full object-contain z-10"
+            style={{ display: isVideo ? 'block' : 'none' }}
+            playsInline
+            preload="auto"
+          />
 
-          {/* Optional background video for audio files */}
           {showBackgroundVideo && (
             <video
               ref={backgroundVideoRef}
@@ -296,21 +335,27 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             />
           )}
 
-          {/* Audio file placeholder when no background video */}
           {isAudioFile && !showBackgroundVideo && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50">
               <FileAudio size={48} className="text-primary mb-4" />
-              <div className="text-lg font-medium text-white mb-2">{activeFile?.name || 'Audio File'}</div>
+              <div className="text-lg font-medium text-white mb-2">
+                {activeFile?.name || 'Audio File'}
+              </div>
               <div className="text-sm text-app-gray">Audio</div>
             </div>
           )}
 
-          {/* Text overlay */}
-          <div style={overlayStyle}>
-            <div className={animClass} style={textInnerStyle}>
-              {currentSubtitleText || ''}
+          {currentSubtitleText && (
+            <div style={overlayStyle}>
+              <div
+                key={currentSubtitleText}
+                className={animClass}
+                style={textInnerStyle}
+              >
+                {currentSubtitleText}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -327,7 +372,11 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
           className="p-2 rounded-full hover:text-primary transition-colors"
           title={isPlaying ? 'Pause' : 'Play'}
         >
-          {isPlaying ? <Pause size={22} strokeWidth={1.5} /> : <Play size={22} strokeWidth={1.5} />}
+          {isPlaying ? (
+            <Pause size={22} strokeWidth={1.5} />
+          ) : (
+            <Play size={22} strokeWidth={1.5} />
+          )}
         </button>
         <button
           onClick={handleSeekForward}
@@ -365,10 +414,11 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
               style={{ left: `calc(${progressPercent}% - 8px)` }}
             />
           </div>
-          <span className="text-xs text-app-gray w-10">{formatTimeDisplay(mediaDuration)}</span>
+          <span className="text-xs text-app-gray w-10">
+            {formatTimeDisplay(mediaDuration)}
+          </span>
         </div>
       )}
     </div>
   );
 };
-

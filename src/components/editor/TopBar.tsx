@@ -29,12 +29,15 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   return (
     <div className="absolute top-0 left-0 right-0 h-14 bg-app-surface shadow-md flex items-center justify-between px-4 z-20 border-b border-app-border">
-      <div className="flex items-center gap-3 cursor-pointer" onClick={onCloseProject}>
+      <div
+        className="flex items-center gap-3 cursor-pointer"
+        onClick={onCloseProject}
+      >
         <img
           src="assets/VoxMatch-logo.png"
           alt="VoxMatch Logo"
           className="w-40"
-          onError={(e) => {
+          onError={e => {
             e.currentTarget.style.display = 'none';
             const fallback = document.createElement('div');
             fallback.className = 'flex items-center gap-3';
@@ -59,9 +62,20 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onToggleLayout}
           className="p-2 rounded-md hover:bg-app-gray-light text-app-icon-color"
-          title={isVerticalLayout ? "Switch to Horizontal Layout" : "Switch to Vertical Layout"}
+          title={
+            isVerticalLayout
+              ? 'Switch to Horizontal Layout'
+              : 'Switch to Vertical Layout'
+          }
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             {isVerticalLayout ? (
               <rect x="3" y="6" width="18" height="12" rx="2" ry="2" />
             ) : (
@@ -96,7 +110,9 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <button
           onClick={onSave}
-          className={`p-2 rounded-md hover:bg-app-gray-light text-app-icon-color ${isProjectSaved ? 'opacity-50 cursor-default' : ''}`}
+          className={`p-2 rounded-md hover:bg-app-gray-light text-app-icon-color ${
+            isProjectSaved ? 'opacity-50 cursor-default' : ''
+          }`}
           title="Save Project (Ctrl+S)"
           disabled={isProjectSaved}
         >

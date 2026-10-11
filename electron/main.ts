@@ -1,10 +1,23 @@
 // electron/main.ts
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, Menu } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  nativeImage,
+  Menu,
+  protocol,
+  net,
+} from 'electron';
 import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { pathToFileURL } from 'url';
 
-// Type definitions
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
+
 interface FileMetadata {
   name: string;
   path: string;
@@ -23,36 +36,92 @@ interface SaveResult {
   path?: string;
 }
 
-// Application state
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
+
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 
-// Constants
-
 const APP_NAME = 'VoxMatch Studio';
 const APP_ID = 'com.voxmatch.studio';
 const ICON_PATH = path.join(process.cwd(), 'public', 'assets', 'icon.ico');
+const VXM_EXTENSION = 'vxm';
 
-// GPU/Performance Settings
+// A .vxm path queued for the renderer (from cold-start arg or OS event)
+let pendingProjectFile: string | null = null;
 
-// Disable GPU acceleration to prevent black flicker issues
+// ─────────────────────────────────────────────────────────────
+// File-open helpers
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Extract a .vxm path from a command-line args array.
+ */
+function extractVxmPathFromArgs(args: string[]): string | null {
+  for (const arg of args) {
+    if (arg.startsWith('-')) continue;
+    if (arg.toLowerCase().endsWith(`.${VXM_EXTENSION}`)) return arg;
+  }
+  return null;
+}
+
+/**
+ * Queue a .vxm file to open and try to deliver it immediately
+ * if the renderer is already loaded.
+ */
+function queueProjectFileOpen(filePath: string): void {
+  console.log(`📂 Queueing .vxm open: ${filePath}`);
+  pendingProjectFile = filePath;
+  deliverPendingProjectFile();
+}
+
+function deliverPendingProjectFile(): void {
+  if (!pendingProjectFile) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.webContents.isLoading()) return;
+
+  console.log(`📂 Delivering .vxm to renderer: ${pendingProjectFile}`);
+  mainWindow.webContents.send('app:openProjectFile', pendingProjectFile);
+  pendingProjectFile = null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Custom protocol for streaming local media into <video>/<audio>
+// ─────────────────────────────────────────────────────────────
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media',
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
+
+// ─────────────────────────────────────────────────────────────
+// GPU / Performance
+// ─────────────────────────────────────────────────────────────
+
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-gpu-compositing');
 app.commandLine.appendSwitch('disable-accelerated-video-decode');
 app.commandLine.appendSwitch('disable-accelerated-video-encode');
 app.disableHardwareAcceleration();
-
-// Enable smooth scrolling
 app.commandLine.appendSwitch('enable-smooth-scrolling');
 
-// Splash Screen
+// ─────────────────────────────────────────────────────────────
+// Splash
+// ─────────────────────────────────────────────────────────────
 
 function createSplashScreen(): void {
-  console.log('🎬 Creating splash screen...');
-  
   const iconPath = validateIconPath();
-  
+
   splashWindow = new BrowserWindow({
     width: 900,
     height: 450,
@@ -76,10 +145,8 @@ function createSplashScreen(): void {
     ? path.join(process.cwd(), 'public', 'splash.html')
     : path.join(process.resourcesPath, 'public', 'splash.html');
 
-  console.log('📁 Splash path:', splashPath);
-
   if (fs.existsSync(splashPath)) {
-    splashWindow.loadFile(splashPath).catch((err) => {
+    splashWindow.loadFile(splashPath).catch(err => {
       console.error('❌ Failed to load splash screen:', err);
     });
   } else {
@@ -88,52 +155,33 @@ function createSplashScreen(): void {
     return;
   }
 
-  splashWindow.once('ready-to-show', () => {
-    console.log('✅ Splash screen ready');
-    splashWindow?.show();
-  });
-
-  splashWindow.on('closed', () => {
-    splashWindow = null;
-  });
+  splashWindow.once('ready-to-show', () => splashWindow?.show());
+  splashWindow.on('closed', () => (splashWindow = null));
 }
 
-// Window Management
+// ─────────────────────────────────────────────────────────────
+// Icon
+// ─────────────────────────────────────────────────────────────
 
 function validateIconPath(): string | null {
-  console.log('🔍 Checking icon path:', ICON_PATH);
-  
-  if (!fs.existsSync(ICON_PATH)) {
-    console.error('❌ Icon file not found at:', ICON_PATH);
-    return null;
-  }
-  
+  if (!fs.existsSync(ICON_PATH)) return null;
   try {
     const icon = nativeImage.createFromPath(ICON_PATH);
-    if (icon.isEmpty()) {
-      console.error('❌ Icon file is invalid or corrupted');
-      return null;
-    }
-    
-    console.log('✅ Icon validated successfully');
-    return ICON_PATH;
-  } catch (error) {
-    console.error('❌ Failed to load icon:', error);
+    return icon.isEmpty() ? null : ICON_PATH;
+  } catch {
     return null;
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Main window
+// ─────────────────────────────────────────────────────────────
+
 function createWindow(): void {
-  console.log('🚀 Creating main window...');
-  
   const preloadPath = path.join(__dirname, 'preload.js');
   const iconPath = validateIconPath();
-  
-  console.log('📁 Preload path:', preloadPath);
-  console.log('📁 __dirname:', __dirname);
-  console.log('📁 Icon path:', iconPath);
 
-  const windowOptions: Electron.BrowserWindowConstructorOptions = {
+  mainWindow = new BrowserWindow({
     width: 1600,
     height: 900,
     minWidth: 1024,
@@ -146,7 +194,7 @@ function createWindow(): void {
       webSecurity: !isDev,
       allowRunningInsecureContent: false,
       sandbox: false,
-      devTools: isDev, // Enable DevTools in development
+      devTools: isDev,
     },
     frame: true,
     titleBarStyle: 'default',
@@ -154,182 +202,164 @@ function createWindow(): void {
     title: APP_NAME,
     backgroundColor: '#1a1a1a',
     icon: iconPath || undefined,
-  };
+  });
 
-  mainWindow = new BrowserWindow(windowOptions);
-
-  // Remove menu bar completely
   mainWindow.setMenu(null);
   Menu.setApplicationMenu(null);
 
-  // Handle keyboard shortcuts - Shift+F5 for DevTools
+  // Deliver any pending .vxm once the renderer finishes its first load
+  mainWindow.webContents.on('did-finish-load', () => {
+    deliverPendingProjectFile();
+  });
+
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    // Shift+F5 to open DevTools (only in development)
     if (isDev && input.shift && input.key === 'F5') {
       event.preventDefault();
       mainWindow?.webContents.openDevTools({ mode: 'detach' });
-      console.log('🔧 DevTools opened via Shift+F5');
       return;
     }
-    
-    // Block other DevTools shortcuts in production
+    if (isDev && !input.shift && input.key === 'F5') {
+      event.preventDefault();
+      mainWindow?.webContents.reload();
+      return;
+    }
+    if (isDev && input.control && input.shift && input.key === 'R') {
+      event.preventDefault();
+      mainWindow?.webContents.reloadIgnoringCache();
+      return;
+    }
     if (!isDev) {
-      const isDevToolsShortcut = 
+      const isDevToolsShortcut =
         input.key === 'F12' ||
         (input.control && input.shift && input.key === 'I') ||
         (input.meta && input.alt && input.key === 'I') ||
         (input.control && input.shift && input.key === 'J') ||
         (input.meta && input.alt && input.key === 'J') ||
         (input.control && input.key === 'F12');
-      
-      if (isDevToolsShortcut) {
-        event.preventDefault();
-      }
-    }
-    
-    // F5 for reload (only in development)
-    if (isDev && !input.shift && input.key === 'F5') {
-      event.preventDefault();
-      mainWindow?.webContents.reload();
-      console.log('🔄 Window reloaded via F5');
-      return;
-    }
-    
-    // Ctrl+Shift+R for hard reload (only in development)
-    if (isDev && input.control && input.shift && input.key === 'R') {
-      event.preventDefault();
-      mainWindow?.webContents.reloadIgnoringCache();
-      console.log('🔄 Hard reload via Ctrl+Shift+R');
-      return;
+      if (isDevToolsShortcut) event.preventDefault();
     }
   });
 
-  // Set app user model ID for Windows taskbar
-  if (process.platform === 'win32') {
-    app.setAppUserModelId(APP_ID);
-  }
+  if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 
-  // Load the application
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173').catch((error) => {
-      console.error('❌ Failed to load from dev server:', error);
+    mainWindow.loadURL('http://localhost:5173').catch(error => {
+      console.error('❌ Failed to load dev server:', error);
       dialog.showErrorBox(
         'Development Server Error',
-        'Failed to connect to Vite dev server at http://localhost:5173\n\nPlease ensure the dev server is running.'
+        'Failed to connect to Vite dev server at http://localhost:5173.',
       );
     });
-    
-    // Open DevTools automatically in development (optional)
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     const indexPath = path.join(__dirname, '../dist/index.html');
-    console.log('📁 Loading index from:', indexPath);
-    
     if (!fs.existsSync(indexPath)) {
-      console.error('❌ Index file not found:', indexPath);
       dialog.showErrorBox(
         'Application Error',
-        'Failed to locate the application files. Please reinstall the application.'
+        'Failed to locate the application files.',
       );
       app.quit();
       return;
     }
-    
-    mainWindow.loadFile(indexPath).catch((error) => {
-      console.error('❌ Failed to load application:', error);
+    mainWindow.loadFile(indexPath).catch(error => {
       dialog.showErrorBox(
         'Application Error',
-        `Failed to load the application.\n\n${error.message}`
+        `Failed to load the application.\n\n${error.message}`,
       );
     });
   }
 
   mainWindow.once('ready-to-show', () => {
-    console.log('✅ Main window ready');
-    
     setTimeout(() => {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.close();
-      }
+      if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
       mainWindow?.show();
       mainWindow?.focus();
     }, 800);
   });
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-  
-  mainWindow.on('unresponsive', () => {
-    console.error('⚠️ Main window became unresponsive');
-  });
+  mainWindow.on('closed', () => (mainWindow = null));
+  mainWindow.on('unresponsive', () =>
+    console.error('⚠️ Main window became unresponsive'),
+  );
 }
 
-// Application Lifecycle
+// ─────────────────────────────────────────────────────────────
+// Lifecycle
+// ─────────────────────────────────────────────────────────────
 
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
+    const vxmPath = extractVxmPathFromArgs(argv);
+    if (vxmPath) queueProjectFileOpen(vxmPath);
+  });
+
+  // macOS: user double-clicked a .vxm in Finder
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    if (filePath.toLowerCase().endsWith(`.${VXM_EXTENSION}`)) {
+      queueProjectFileOpen(filePath);
+    }
   });
 
   app.whenReady().then(() => {
-    console.log('✅ App ready');
-    console.log('📁 App path:', app.getAppPath());
-    console.log('📁 Resources path:', process.resourcesPath);
-    console.log('📁 Current working directory:', process.cwd());
-    
     Menu.setApplicationMenu(null);
-    
-    const iconPath = validateIconPath();
-    if (iconPath) {
+
+    // Detect a .vxm path passed on cold start (app was closed)
+    const coldStartVxm = extractVxmPathFromArgs(process.argv);
+    if (coldStartVxm) {
+      console.log(`📂 Cold-start .vxm: ${coldStartVxm}`);
+      pendingProjectFile = coldStartVxm;
+    }
+
+    // Register media:// protocol
+    protocol.handle('media', request => {
       try {
-        const icon = nativeImage.createFromPath(iconPath);
-        
-        if (process.platform === 'darwin' && app.dock) {
-          app.dock.setIcon(icon);
-          console.log('✅ Dock icon set');
+        const url = new URL(request.url);
+        // media://local/<encoded absolute path>
+        const encoded = url.pathname.replace(/^\/+/, '');
+        const filePath = decodeURIComponent(encoded);
+        if (!fs.existsSync(filePath)) {
+          return new Response('Not found', { status: 404 });
         }
-        
-        if (process.platform === 'win32') {
-          console.log('✅ Windows taskbar icon configured');
-        }
-      } catch (error) {
-        console.error('❌ Failed to set application icon:', error);
+        return net.fetch(pathToFileURL(filePath).toString());
+      } catch (err) {
+        console.error('media:// handler error:', err);
+        return new Response('Bad request', { status: 400 });
+      }
+    });
+
+    const iconPath = validateIconPath();
+    if (iconPath && process.platform === 'darwin' && app.dock) {
+      try {
+        app.dock.setIcon(nativeImage.createFromPath(iconPath));
+      } catch (err) {
+        console.error('Failed to set dock icon:', err);
       }
     }
-    
+
     createSplashScreen();
-    
-    setTimeout(() => {
-      createWindow();
-    }, 200);
+    setTimeout(createWindow, 200);
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit();
-    }
-  });
-  
-  app.on('will-quit', () => {
-    console.log('📤 Application shutting down...');
+    if (process.platform !== 'darwin') app.quit();
   });
 }
 
-// Utility Functions
+// ─────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────
 
 function getMimeTypeFromExtension(ext: string): string {
   const mimeTypes: Record<string, string> = {
@@ -344,9 +374,8 @@ function getMimeTypeFromExtension(ext: string): string {
     '.webm': 'video/webm',
     '.mkv': 'video/x-matroska',
     '.avi': 'video/x-msvideo',
-    '.vxm': 'application/json',
+    [`.${VXM_EXTENSION}`]: 'application/json',
   };
-  
   return mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
 }
 
@@ -358,120 +387,155 @@ function validateFilePath(filePath: string): boolean {
   }
 }
 
-// Dialog IPC Handlers
+function ensureVxmExtension(filePath: string): string {
+  return filePath.toLowerCase().endsWith(`.${VXM_EXTENSION}`)
+    ? filePath
+    : `${filePath}.${VXM_EXTENSION}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Dialog IPC
+// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('dialog:openFile', async (_event, options: any = {}) => {
-  if (!mainWindow) {
-    throw new Error('No active window');
-  }
-  
+  if (!mainWindow) throw new Error('No active window');
+
   const defaultFilters = [
-    { name: 'All Supported Media', extensions: ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'mp4', 'mov', 'webm', 'mkv', 'avi'] },
+    {
+      name: 'All Supported Media',
+      extensions: [
+        'mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac',
+        'mp4', 'mov', 'webm', 'mkv', 'avi',
+      ],
+    },
     { name: 'Audio Files', extensions: ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac'] },
     { name: 'Video Files', extensions: ['mp4', 'mov', 'webm', 'mkv', 'avi'] },
-    { name: 'VoxMatch Project', extensions: ['vxm'] },
+    { name: 'VoxMatch Project', extensions: [VXM_EXTENSION] },
     { name: 'All Files', extensions: ['*'] },
   ];
-  
+
   const mergedOptions: OpenDialogOptions = {
     title: options.title || 'Open File',
     defaultPath: options.defaultPath,
     filters: options.filters || defaultFilters,
     properties: options.properties || ['openFile'],
   };
-  
+
   return await dialog.showOpenDialog(mainWindow, mergedOptions);
 });
 
 ipcMain.handle('dialog:selectSaveLocation', async (_event, options: any = {}) => {
-  if (!mainWindow) {
-    throw new Error('No active window');
-  }
-  
+  if (!mainWindow) throw new Error('No active window');
+
   const saveOptions: SaveDialogOptions = {
     title: options.title || 'Save File',
     defaultPath: options.defaultPath || 'Untitled',
     filters: options.filters || [
-      { name: 'VoxMatch Project', extensions: ['vxm'] },
+      { name: 'VoxMatch Project', extensions: [VXM_EXTENSION] },
       { name: 'All Files', extensions: ['*'] },
     ],
   };
-  
+
   const result = await dialog.showSaveDialog(mainWindow, saveOptions);
   return result.canceled ? null : result.filePath;
 });
 
-// File Handlers
+// ─────────────────────────────────────────────────────────────
+// File IPC
+// ─────────────────────────────────────────────────────────────
 
-ipcMain.handle('file:getMetadata', async (_event, filePath: string): Promise<FileMetadata> => {
+ipcMain.handle(
+  'file:getMetadata',
+  async (_event, filePath: string): Promise<FileMetadata> => {
+    if (!validateFilePath(filePath)) {
+      throw new Error(`File not found or inaccessible: ${filePath}`);
+    }
+    const stats = fs.statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    return {
+      name: path.basename(filePath),
+      path: filePath,
+      type: getMimeTypeFromExtension(ext),
+      size: stats.size,
+      duration: 0,
+    };
+  },
+);
+
+ipcMain.handle(
+  'file:loadAudioContent',
+  async (_event, filePath: string): Promise<MediaContentResult> => {
+    if (!validateFilePath(filePath)) {
+      throw new Error(`File not found or inaccessible: ${filePath}`);
+    }
+    const data = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const arrayBuffer = data.buffer.slice(
+      data.byteOffset,
+      data.byteOffset + data.byteLength,
+    ) as ArrayBuffer;
+    return {
+      data: arrayBuffer,
+      mimeType: getMimeTypeFromExtension(ext),
+    };
+  },
+);
+
+/**
+ * Returns a `media://` URL that the renderer can hand directly to
+ * <video>/<audio> src. Streams from disk without copying.
+ */
+ipcMain.handle('file:getMediaUrl', async (_event, filePath: string) => {
   if (!validateFilePath(filePath)) {
     throw new Error(`File not found or inaccessible: ${filePath}`);
   }
-  
-  const stats = fs.statSync(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  
-  return {
-    name: path.basename(filePath),
-    path: filePath,
-    type: getMimeTypeFromExtension(ext),
-    size: stats.size,
-    duration: 0,
-  };
+  const encoded = encodeURIComponent(filePath);
+  return `media://local/${encoded}`;
 });
 
-ipcMain.handle('file:loadAudioContent', async (_event, filePath: string): Promise<MediaContentResult> => {
-  if (!validateFilePath(filePath)) {
-    throw new Error(`File not found or inaccessible: ${filePath}`);
-  }
-  
-  const data = fs.readFileSync(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  
-  return {
-    data: arrayBuffer as ArrayBuffer,
-    mimeType: getMimeTypeFromExtension(ext),
-  };
-});
+// ─────────────────────────────────────────────────────────────
+// Project .vxm IPC
+// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('file:loadProject', async (_event, filePath: string): Promise<string> => {
   if (!validateFilePath(filePath)) {
     throw new Error(`Project file not found: ${filePath}`);
   }
-  
   const data = fs.readFileSync(filePath, 'utf-8');
-  
   try {
     JSON.parse(data);
   } catch (error) {
-    throw new Error(`Invalid project file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Invalid project file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
   }
-  
   return data;
 });
 
-ipcMain.handle('project:save', async (_event, projectData: any, filePath: string): Promise<SaveResult> => {
-  const finalPath = filePath.endsWith('.vxm') ? filePath : `${filePath}.vxm`;
-  const dir = path.dirname(finalPath);
-  
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  
-  const jsonData = JSON.stringify(projectData, null, 2);
-  fs.writeFileSync(finalPath, jsonData, 'utf-8');
-  
-  return { success: true, path: finalPath };
-});
+ipcMain.handle(
+  'project:save',
+  async (_event, projectData: any, filePath: string): Promise<SaveResult> => {
+    const finalPath = ensureVxmExtension(filePath);
+    const dir = path.dirname(finalPath);
 
-// Export Handlers
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    // Atomic write: temp file then rename
+    const tmpPath = `${finalPath}.tmp-${Date.now()}`;
+    const jsonData = JSON.stringify(projectData, null, 2);
+    fs.writeFileSync(tmpPath, jsonData, 'utf-8');
+    fs.renameSync(tmpPath, finalPath);
+
+    return { success: true, path: finalPath };
+  },
+);
+
+// ─────────────────────────────────────────────────────────────
+// Export IPC
+// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('export:video', async (_event, options: any = {}): Promise<SaveResult> => {
-  if (!mainWindow) {
-    throw new Error('No active window');
-  }
-  
+  if (!mainWindow) throw new Error('No active window');
   const result = await dialog.showSaveDialog(mainWindow, {
     title: options.title || 'Export Video',
     defaultPath: options.defaultPath || 'output.mp4',
@@ -480,15 +544,11 @@ ipcMain.handle('export:video', async (_event, options: any = {}): Promise<SaveRe
       { name: 'All Files', extensions: ['*'] },
     ],
   });
-  
   return { success: !result.canceled, path: result.filePath };
 });
 
 ipcMain.handle('export:subtitles', async (_event, options: any = {}): Promise<SaveResult> => {
-  if (!mainWindow) {
-    throw new Error('No active window');
-  }
-  
+  if (!mainWindow) throw new Error('No active window');
   const result = await dialog.showSaveDialog(mainWindow, {
     title: options.title || 'Export Subtitles',
     defaultPath: options.defaultPath || 'subtitles.srt',
@@ -498,11 +558,12 @@ ipcMain.handle('export:subtitles', async (_event, options: any = {}): Promise<Sa
       { name: 'All Files', extensions: ['*'] },
     ],
   });
-  
   return { success: !result.canceled, path: result.filePath };
 });
 
-// DevTools IPC Handler
+// ─────────────────────────────────────────────────────────────
+// DevTools IPC
+// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('dev:openDevTools', () => {
   if (isDev && mainWindow && !mainWindow.isDestroyed()) {
@@ -524,68 +585,51 @@ ipcMain.handle('dev:toggleDevTools', () => {
   return false;
 });
 
-// App Info Handlers
+// ─────────────────────────────────────────────────────────────
+// App info IPC
+// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);
 ipcMain.handle('app:getPath', (_event, name: string) => app.getPath(name as any));
+
+// Renderer is ready to receive queued .vxm files
 ipcMain.handle('app:notifyReady', () => {
-  console.log('✅ React app notified ready via IPC');
+  console.log('✅ Renderer ready');
+  deliverPendingProjectFile();
   return true;
 });
 
-// Window Control Handlers
+// ─────────────────────────────────────────────────────────────
+// Window control IPC
+// ─────────────────────────────────────────────────────────────
 
-ipcMain.on('window:minimize', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
-  }
-});
-
+ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-  }
+  if (!mainWindow) return;
+  mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
 });
-
-ipcMain.on('window:close', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.close();
-  }
-});
-
+ipcMain.on('window:close', () => mainWindow?.close());
 ipcMain.on('window:toggleFullscreen', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
-  }
+  if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 
-// Error Handling
+// ─────────────────────────────────────────────────────────────
+// Error handling
+// ─────────────────────────────────────────────────────────────
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error('❌ Uncaught Exception:', error);
   dialog.showErrorBox(
     'Unexpected Error',
-    `An unexpected error occurred:\n\n${error.message}\n\nPlease restart the application.`
+    `An unexpected error occurred:\n\n${error.message}`,
   );
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled Rejection:', reason);
-});
-
-process.on('SIGTERM', () => {
-  console.log('📤 Received SIGTERM signal');
-  app.quit();
-});
-
-process.on('SIGINT', () => {
-  console.log('📤 Received SIGINT signal');
-  app.quit();
-});
+process.on('unhandledRejection', reason =>
+  console.error('❌ Unhandled Rejection:', reason),
+);
+process.on('SIGTERM', () => app.quit());
+process.on('SIGINT', () => app.quit());
 
 export { mainWindow };

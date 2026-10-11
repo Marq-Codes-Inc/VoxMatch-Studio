@@ -36,12 +36,47 @@ module.exports = __toCommonJS(main_exports);
 var import_electron = require("electron");
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
+var import_url = require("url");
 var mainWindow = null;
 var splashWindow = null;
 var isDev = process.env.NODE_ENV === "development";
 var APP_NAME = "VoxMatch Studio";
 var APP_ID = "com.voxmatch.studio";
 var ICON_PATH = path.join(process.cwd(), "public", "assets", "icon.ico");
+var VXM_EXTENSION = "vxm";
+var pendingProjectFile = null;
+function extractVxmPathFromArgs(args) {
+  for (const arg of args) {
+    if (arg.startsWith("-")) continue;
+    if (arg.toLowerCase().endsWith(`.${VXM_EXTENSION}`)) return arg;
+  }
+  return null;
+}
+function queueProjectFileOpen(filePath) {
+  console.log(`\u{1F4C2} Queueing .vxm open: ${filePath}`);
+  pendingProjectFile = filePath;
+  deliverPendingProjectFile();
+}
+function deliverPendingProjectFile() {
+  if (!pendingProjectFile) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.webContents.isLoading()) return;
+  console.log(`\u{1F4C2} Delivering .vxm to renderer: ${pendingProjectFile}`);
+  mainWindow.webContents.send("app:openProjectFile", pendingProjectFile);
+  pendingProjectFile = null;
+}
+import_electron.protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "media",
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true
+    }
+  }
+]);
 import_electron.app.commandLine.appendSwitch("disable-gpu");
 import_electron.app.commandLine.appendSwitch("disable-gpu-compositing");
 import_electron.app.commandLine.appendSwitch("disable-accelerated-video-decode");
@@ -49,7 +84,6 @@ import_electron.app.commandLine.appendSwitch("disable-accelerated-video-encode")
 import_electron.app.disableHardwareAcceleration();
 import_electron.app.commandLine.appendSwitch("enable-smooth-scrolling");
 function createSplashScreen() {
-  console.log("\u{1F3AC} Creating splash screen...");
   const iconPath = validateIconPath();
   splashWindow = new import_electron.BrowserWindow({
     width: 900,
@@ -69,7 +103,6 @@ function createSplashScreen() {
   });
   splashWindow.setMenu(null);
   const splashPath = isDev ? path.join(process.cwd(), "public", "splash.html") : path.join(process.resourcesPath, "public", "splash.html");
-  console.log("\u{1F4C1} Splash path:", splashPath);
   if (fs.existsSync(splashPath)) {
     splashWindow.loadFile(splashPath).catch((err) => {
       console.error("\u274C Failed to load splash screen:", err);
@@ -79,41 +112,22 @@ function createSplashScreen() {
     import_electron.app.quit();
     return;
   }
-  splashWindow.once("ready-to-show", () => {
-    console.log("\u2705 Splash screen ready");
-    splashWindow?.show();
-  });
-  splashWindow.on("closed", () => {
-    splashWindow = null;
-  });
+  splashWindow.once("ready-to-show", () => splashWindow?.show());
+  splashWindow.on("closed", () => splashWindow = null);
 }
 function validateIconPath() {
-  console.log("\u{1F50D} Checking icon path:", ICON_PATH);
-  if (!fs.existsSync(ICON_PATH)) {
-    console.error("\u274C Icon file not found at:", ICON_PATH);
-    return null;
-  }
+  if (!fs.existsSync(ICON_PATH)) return null;
   try {
     const icon = import_electron.nativeImage.createFromPath(ICON_PATH);
-    if (icon.isEmpty()) {
-      console.error("\u274C Icon file is invalid or corrupted");
-      return null;
-    }
-    console.log("\u2705 Icon validated successfully");
-    return ICON_PATH;
-  } catch (error) {
-    console.error("\u274C Failed to load icon:", error);
+    return icon.isEmpty() ? null : ICON_PATH;
+  } catch {
     return null;
   }
 }
 function createWindow() {
-  console.log("\u{1F680} Creating main window...");
   const preloadPath = path.join(__dirname, "preload.js");
   const iconPath = validateIconPath();
-  console.log("\u{1F4C1} Preload path:", preloadPath);
-  console.log("\u{1F4C1} __dirname:", __dirname);
-  console.log("\u{1F4C1} Icon path:", iconPath);
-  const windowOptions = {
+  mainWindow = new import_electron.BrowserWindow({
     width: 1600,
     height: 900,
     minWidth: 1024,
@@ -127,7 +141,6 @@ function createWindow() {
       allowRunningInsecureContent: false,
       sandbox: false,
       devTools: isDev
-      // Enable DevTools in development
     },
     frame: true,
     titleBarStyle: "default",
@@ -135,61 +148,53 @@ function createWindow() {
     title: APP_NAME,
     backgroundColor: "#1a1a1a",
     icon: iconPath || void 0
-  };
-  mainWindow = new import_electron.BrowserWindow(windowOptions);
+  });
   mainWindow.setMenu(null);
   import_electron.Menu.setApplicationMenu(null);
+  mainWindow.webContents.on("did-finish-load", () => {
+    deliverPendingProjectFile();
+  });
   mainWindow.webContents.on("before-input-event", (event, input) => {
     if (isDev && input.shift && input.key === "F5") {
       event.preventDefault();
       mainWindow?.webContents.openDevTools({ mode: "detach" });
-      console.log("\u{1F527} DevTools opened via Shift+F5");
       return;
-    }
-    if (!isDev) {
-      const isDevToolsShortcut = input.key === "F12" || input.control && input.shift && input.key === "I" || input.meta && input.alt && input.key === "I" || input.control && input.shift && input.key === "J" || input.meta && input.alt && input.key === "J" || input.control && input.key === "F12";
-      if (isDevToolsShortcut) {
-        event.preventDefault();
-      }
     }
     if (isDev && !input.shift && input.key === "F5") {
       event.preventDefault();
       mainWindow?.webContents.reload();
-      console.log("\u{1F504} Window reloaded via F5");
       return;
     }
     if (isDev && input.control && input.shift && input.key === "R") {
       event.preventDefault();
       mainWindow?.webContents.reloadIgnoringCache();
-      console.log("\u{1F504} Hard reload via Ctrl+Shift+R");
       return;
     }
+    if (!isDev) {
+      const isDevToolsShortcut = input.key === "F12" || input.control && input.shift && input.key === "I" || input.meta && input.alt && input.key === "I" || input.control && input.shift && input.key === "J" || input.meta && input.alt && input.key === "J" || input.control && input.key === "F12";
+      if (isDevToolsShortcut) event.preventDefault();
+    }
   });
-  if (process.platform === "win32") {
-    import_electron.app.setAppUserModelId(APP_ID);
-  }
+  if (process.platform === "win32") import_electron.app.setAppUserModelId(APP_ID);
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173").catch((error) => {
-      console.error("\u274C Failed to load from dev server:", error);
+      console.error("\u274C Failed to load dev server:", error);
       import_electron.dialog.showErrorBox(
         "Development Server Error",
-        "Failed to connect to Vite dev server at http://localhost:5173\n\nPlease ensure the dev server is running."
+        "Failed to connect to Vite dev server at http://localhost:5173."
       );
     });
   } else {
     const indexPath = path.join(__dirname, "../dist/index.html");
-    console.log("\u{1F4C1} Loading index from:", indexPath);
     if (!fs.existsSync(indexPath)) {
-      console.error("\u274C Index file not found:", indexPath);
       import_electron.dialog.showErrorBox(
         "Application Error",
-        "Failed to locate the application files. Please reinstall the application."
+        "Failed to locate the application files."
       );
       import_electron.app.quit();
       return;
     }
     mainWindow.loadFile(indexPath).catch((error) => {
-      console.error("\u274C Failed to load application:", error);
       import_electron.dialog.showErrorBox(
         "Application Error",
         `Failed to load the application.
@@ -199,70 +204,73 @@ ${error.message}`
     });
   }
   mainWindow.once("ready-to-show", () => {
-    console.log("\u2705 Main window ready");
     setTimeout(() => {
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.close();
-      }
+      if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
       mainWindow?.show();
       mainWindow?.focus();
     }, 800);
   });
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-  mainWindow.on("unresponsive", () => {
-    console.error("\u26A0\uFE0F Main window became unresponsive");
-  });
+  mainWindow.on("closed", () => mainWindow = null);
+  mainWindow.on(
+    "unresponsive",
+    () => console.error("\u26A0\uFE0F Main window became unresponsive")
+  );
 }
 var gotTheLock = import_electron.app.requestSingleInstanceLock();
 if (!gotTheLock) {
   import_electron.app.quit();
 } else {
-  import_electron.app.on("second-instance", () => {
+  import_electron.app.on("second-instance", (_event, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
+    const vxmPath = extractVxmPathFromArgs(argv);
+    if (vxmPath) queueProjectFileOpen(vxmPath);
+  });
+  import_electron.app.on("open-file", (event, filePath) => {
+    event.preventDefault();
+    if (filePath.toLowerCase().endsWith(`.${VXM_EXTENSION}`)) {
+      queueProjectFileOpen(filePath);
+    }
   });
   import_electron.app.whenReady().then(() => {
-    console.log("\u2705 App ready");
-    console.log("\u{1F4C1} App path:", import_electron.app.getAppPath());
-    console.log("\u{1F4C1} Resources path:", process.resourcesPath);
-    console.log("\u{1F4C1} Current working directory:", process.cwd());
     import_electron.Menu.setApplicationMenu(null);
-    const iconPath = validateIconPath();
-    if (iconPath) {
+    const coldStartVxm = extractVxmPathFromArgs(process.argv);
+    if (coldStartVxm) {
+      console.log(`\u{1F4C2} Cold-start .vxm: ${coldStartVxm}`);
+      pendingProjectFile = coldStartVxm;
+    }
+    import_electron.protocol.handle("media", (request) => {
       try {
-        const icon = import_electron.nativeImage.createFromPath(iconPath);
-        if (process.platform === "darwin" && import_electron.app.dock) {
-          import_electron.app.dock.setIcon(icon);
-          console.log("\u2705 Dock icon set");
+        const url = new URL(request.url);
+        const encoded = url.pathname.replace(/^\/+/, "");
+        const filePath = decodeURIComponent(encoded);
+        if (!fs.existsSync(filePath)) {
+          return new Response("Not found", { status: 404 });
         }
-        if (process.platform === "win32") {
-          console.log("\u2705 Windows taskbar icon configured");
-        }
-      } catch (error) {
-        console.error("\u274C Failed to set application icon:", error);
+        return import_electron.net.fetch((0, import_url.pathToFileURL)(filePath).toString());
+      } catch (err) {
+        console.error("media:// handler error:", err);
+        return new Response("Bad request", { status: 400 });
+      }
+    });
+    const iconPath = validateIconPath();
+    if (iconPath && process.platform === "darwin" && import_electron.app.dock) {
+      try {
+        import_electron.app.dock.setIcon(import_electron.nativeImage.createFromPath(iconPath));
+      } catch (err) {
+        console.error("Failed to set dock icon:", err);
       }
     }
     createSplashScreen();
-    setTimeout(() => {
-      createWindow();
-    }, 200);
+    setTimeout(createWindow, 200);
   });
   import_electron.app.on("activate", () => {
-    if (import_electron.BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (import_electron.BrowserWindow.getAllWindows().length === 0) createWindow();
   });
   import_electron.app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      import_electron.app.quit();
-    }
-  });
-  import_electron.app.on("will-quit", () => {
-    console.log("\u{1F4E4} Application shutting down...");
+    if (process.platform !== "darwin") import_electron.app.quit();
   });
 }
 function getMimeTypeFromExtension(ext) {
@@ -278,7 +286,7 @@ function getMimeTypeFromExtension(ext) {
     ".webm": "video/webm",
     ".mkv": "video/x-matroska",
     ".avi": "video/x-msvideo",
-    ".vxm": "application/json"
+    [`.${VXM_EXTENSION}`]: "application/json"
   };
   return mimeTypes[ext.toLowerCase()] || "application/octet-stream";
 }
@@ -289,15 +297,31 @@ function validateFilePath(filePath) {
     return false;
   }
 }
+function ensureVxmExtension(filePath) {
+  return filePath.toLowerCase().endsWith(`.${VXM_EXTENSION}`) ? filePath : `${filePath}.${VXM_EXTENSION}`;
+}
 import_electron.ipcMain.handle("dialog:openFile", async (_event, options = {}) => {
-  if (!mainWindow) {
-    throw new Error("No active window");
-  }
+  if (!mainWindow) throw new Error("No active window");
   const defaultFilters = [
-    { name: "All Supported Media", extensions: ["mp3", "wav", "m4a", "ogg", "flac", "aac", "mp4", "mov", "webm", "mkv", "avi"] },
+    {
+      name: "All Supported Media",
+      extensions: [
+        "mp3",
+        "wav",
+        "m4a",
+        "ogg",
+        "flac",
+        "aac",
+        "mp4",
+        "mov",
+        "webm",
+        "mkv",
+        "avi"
+      ]
+    },
     { name: "Audio Files", extensions: ["mp3", "wav", "m4a", "ogg", "flac", "aac"] },
     { name: "Video Files", extensions: ["mp4", "mov", "webm", "mkv", "avi"] },
-    { name: "VoxMatch Project", extensions: ["vxm"] },
+    { name: "VoxMatch Project", extensions: [VXM_EXTENSION] },
     { name: "All Files", extensions: ["*"] }
   ];
   const mergedOptions = {
@@ -309,45 +333,59 @@ import_electron.ipcMain.handle("dialog:openFile", async (_event, options = {}) =
   return await import_electron.dialog.showOpenDialog(mainWindow, mergedOptions);
 });
 import_electron.ipcMain.handle("dialog:selectSaveLocation", async (_event, options = {}) => {
-  if (!mainWindow) {
-    throw new Error("No active window");
-  }
+  if (!mainWindow) throw new Error("No active window");
   const saveOptions = {
     title: options.title || "Save File",
     defaultPath: options.defaultPath || "Untitled",
     filters: options.filters || [
-      { name: "VoxMatch Project", extensions: ["vxm"] },
+      { name: "VoxMatch Project", extensions: [VXM_EXTENSION] },
       { name: "All Files", extensions: ["*"] }
     ]
   };
   const result = await import_electron.dialog.showSaveDialog(mainWindow, saveOptions);
   return result.canceled ? null : result.filePath;
 });
-import_electron.ipcMain.handle("file:getMetadata", async (_event, filePath) => {
+import_electron.ipcMain.handle(
+  "file:getMetadata",
+  async (_event, filePath) => {
+    if (!validateFilePath(filePath)) {
+      throw new Error(`File not found or inaccessible: ${filePath}`);
+    }
+    const stats = fs.statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    return {
+      name: path.basename(filePath),
+      path: filePath,
+      type: getMimeTypeFromExtension(ext),
+      size: stats.size,
+      duration: 0
+    };
+  }
+);
+import_electron.ipcMain.handle(
+  "file:loadAudioContent",
+  async (_event, filePath) => {
+    if (!validateFilePath(filePath)) {
+      throw new Error(`File not found or inaccessible: ${filePath}`);
+    }
+    const data = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const arrayBuffer = data.buffer.slice(
+      data.byteOffset,
+      data.byteOffset + data.byteLength
+    );
+    return {
+      data: arrayBuffer,
+      mimeType: getMimeTypeFromExtension(ext)
+    };
+  }
+);
+import_electron.ipcMain.handle("file:getMediaUrl", async (_event, filePath) => {
   if (!validateFilePath(filePath)) {
     throw new Error(`File not found or inaccessible: ${filePath}`);
   }
-  const stats = fs.statSync(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  return {
-    name: path.basename(filePath),
-    path: filePath,
-    type: getMimeTypeFromExtension(ext),
-    size: stats.size,
-    duration: 0
-  };
-});
-import_electron.ipcMain.handle("file:loadAudioContent", async (_event, filePath) => {
-  if (!validateFilePath(filePath)) {
-    throw new Error(`File not found or inaccessible: ${filePath}`);
-  }
-  const data = fs.readFileSync(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  return {
-    data: arrayBuffer,
-    mimeType: getMimeTypeFromExtension(ext)
-  };
+  const encoded = encodeURIComponent(filePath);
+  return `media://local/${encoded}`;
 });
 import_electron.ipcMain.handle("file:loadProject", async (_event, filePath) => {
   if (!validateFilePath(filePath)) {
@@ -357,24 +395,27 @@ import_electron.ipcMain.handle("file:loadProject", async (_event, filePath) => {
   try {
     JSON.parse(data);
   } catch (error) {
-    throw new Error(`Invalid project file: ${error instanceof Error ? error.message : "Unknown error"}`);
+    throw new Error(
+      `Invalid project file: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
   return data;
 });
-import_electron.ipcMain.handle("project:save", async (_event, projectData, filePath) => {
-  const finalPath = filePath.endsWith(".vxm") ? filePath : `${filePath}.vxm`;
-  const dir = path.dirname(finalPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+import_electron.ipcMain.handle(
+  "project:save",
+  async (_event, projectData, filePath) => {
+    const finalPath = ensureVxmExtension(filePath);
+    const dir = path.dirname(finalPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmpPath = `${finalPath}.tmp-${Date.now()}`;
+    const jsonData = JSON.stringify(projectData, null, 2);
+    fs.writeFileSync(tmpPath, jsonData, "utf-8");
+    fs.renameSync(tmpPath, finalPath);
+    return { success: true, path: finalPath };
   }
-  const jsonData = JSON.stringify(projectData, null, 2);
-  fs.writeFileSync(finalPath, jsonData, "utf-8");
-  return { success: true, path: finalPath };
-});
+);
 import_electron.ipcMain.handle("export:video", async (_event, options = {}) => {
-  if (!mainWindow) {
-    throw new Error("No active window");
-  }
+  if (!mainWindow) throw new Error("No active window");
   const result = await import_electron.dialog.showSaveDialog(mainWindow, {
     title: options.title || "Export Video",
     defaultPath: options.defaultPath || "output.mp4",
@@ -386,9 +427,7 @@ import_electron.ipcMain.handle("export:video", async (_event, options = {}) => {
   return { success: !result.canceled, path: result.filePath };
 });
 import_electron.ipcMain.handle("export:subtitles", async (_event, options = {}) => {
-  if (!mainWindow) {
-    throw new Error("No active window");
-  }
+  if (!mainWindow) throw new Error("No active window");
   const result = await import_electron.dialog.showSaveDialog(mainWindow, {
     title: options.title || "Export Subtitles",
     defaultPath: options.defaultPath || "subtitles.srt",
@@ -422,32 +461,18 @@ import_electron.ipcMain.handle("app:getVersion", () => import_electron.app.getVe
 import_electron.ipcMain.handle("app:getPlatform", () => process.platform);
 import_electron.ipcMain.handle("app:getPath", (_event, name) => import_electron.app.getPath(name));
 import_electron.ipcMain.handle("app:notifyReady", () => {
-  console.log("\u2705 React app notified ready via IPC");
+  console.log("\u2705 Renderer ready");
+  deliverPendingProjectFile();
   return true;
 });
-import_electron.ipcMain.on("window:minimize", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
-  }
-});
+import_electron.ipcMain.on("window:minimize", () => mainWindow?.minimize());
 import_electron.ipcMain.on("window:maximize", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
-  }
+  if (!mainWindow) return;
+  mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
 });
-import_electron.ipcMain.on("window:close", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.close();
-  }
-});
+import_electron.ipcMain.on("window:close", () => mainWindow?.close());
 import_electron.ipcMain.on("window:toggleFullscreen", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
-  }
+  if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 process.on("uncaughtException", (error) => {
   console.error("\u274C Uncaught Exception:", error);
@@ -455,22 +480,15 @@ process.on("uncaughtException", (error) => {
     "Unexpected Error",
     `An unexpected error occurred:
 
-${error.message}
-
-Please restart the application.`
+${error.message}`
   );
 });
-process.on("unhandledRejection", (reason) => {
-  console.error("\u274C Unhandled Rejection:", reason);
-});
-process.on("SIGTERM", () => {
-  console.log("\u{1F4E4} Received SIGTERM signal");
-  import_electron.app.quit();
-});
-process.on("SIGINT", () => {
-  console.log("\u{1F4E4} Received SIGINT signal");
-  import_electron.app.quit();
-});
+process.on(
+  "unhandledRejection",
+  (reason) => console.error("\u274C Unhandled Rejection:", reason)
+);
+process.on("SIGTERM", () => import_electron.app.quit());
+process.on("SIGINT", () => import_electron.app.quit());
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mainWindow

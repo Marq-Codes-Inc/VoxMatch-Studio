@@ -1,5 +1,7 @@
 // src/types/types.ts
 
+// Media
+
 export interface ImportedMediaFile {
   id: string;
   name: string;
@@ -7,10 +9,12 @@ export interface ImportedMediaFile {
   type: string;
   size: number;
   duration?: number;
-  url: string | null; 
+  url: string | null;
   loaded: boolean;
   file?: File;
 }
+
+// Settings
 
 export interface TimingSettings {
   baseDurationPerChar: number;
@@ -27,9 +31,11 @@ export interface AppSettings {
   waveformColor: string;
   defaultReadingSpeed: 'slow' | 'normal' | 'fast';
   timing: TimingSettings;
-  autoSave?: boolean; 
-  autoSaveFrequency?: number; 
+  autoSave?: boolean;
+  autoSaveFrequency?: number;
 }
+
+// Lyrics / Subtitles
 
 export interface LyricLine {
   id: string;
@@ -44,6 +50,8 @@ export interface TimelineMarker {
   label: string;
   color?: string;
 }
+
+// Stage
 
 export interface GradientStop {
   color: string;
@@ -62,19 +70,15 @@ export interface StageLayer {
   content: string;
   opacity: number;
   blendMode: string;
-  // Visibility and locking
   visible?: boolean;
   locked?: boolean;
   name?: string;
-  // Transform properties
   x?: number;
   y?: number;
   scale?: number;
   rotation?: number;
-  // Image/Video specific
   fit?: 'cover' | 'contain' | 'fill' | 'none';
   fileName?: string;
-  // Gradient specific
   gradient?: StageGradient;
 }
 
@@ -88,6 +92,8 @@ export interface StageStyle {
   customHeight?: number;
   showSafeArea?: boolean;
 }
+
+// Text Styles
 
 export interface TextStyle {
   fontFamily: string;
@@ -111,6 +117,8 @@ export interface TextStyle {
   animation?: string;
 }
 
+// Layout
+
 export interface LayoutPanels {
   leftPanelWidth: number;
   videoPanelHeight: number;
@@ -129,12 +137,16 @@ export interface LayoutState {
   panels: LayoutPanels;
 }
 
+// Context Menu
+
 export interface ContextMenuState {
   visible: boolean;
   x: number;
   y: number;
   file: ImportedMediaFile | null;
 }
+
+// Project  (SINGLE source of truth — was duplicated in project.ts)
 
 export interface VoxMatchProject {
   id: string;
@@ -155,5 +167,14 @@ export interface VoxMatchProject {
   createdAt: number;
   updatedAt: number;
   projectFilePath?: string;
+  schemaVersion?: number;
 }
 
+export interface ProjectMetadata {
+  id: string;
+  name: string;
+  updatedAt: number;
+  thumbnail?: string;
+}
+
+export const VXM_SCHEMA_VERSION = 1;

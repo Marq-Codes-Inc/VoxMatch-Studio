@@ -1,9 +1,9 @@
+// src/components/layout/VerticalLayout.tsx
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { ImportMediaPanel } from '../panels/ImportMediaPanel';
 import { LyricsSubtitlesPanel } from '../panels/SubtitlesLyricsEditPanel';
 import { TimelinePanel } from '../panels/TimelinePanel';
-import { VideoPreviewPanel } from '../panels/VideoPreviewPanel';
 import { ResizeHandle } from './ResizeHandle';
 import { ImportedMediaFile } from '../../types/types';
 
@@ -34,11 +34,14 @@ interface VerticalLayoutProps {
   isMaximizedVideo: boolean;
   onToggleLeftPanelTopRowFilled: () => void;
   onToggleMaximizeVideo: () => void;
-  onContextMenu?: (e: React.MouseEvent | React.SyntheticEvent, file: ImportedMediaFile, targetElement?: HTMLElement) => void;
+  onContextMenu?: (
+    e: React.MouseEvent | React.SyntheticEvent,
+    file: ImportedMediaFile,
+    targetElement?: HTMLElement,
+  ) => void;
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
-  mediaPortalRef: React.RefObject<HTMLDivElement>;
-  videoAspect: number | null;
   onOpenStageSettingsModal?: () => void;
+  videoSlotRef: React.RefObject<HTMLDivElement>;
 }
 
 export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
@@ -51,9 +54,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   onToggleMaximizeVideo,
   onContextMenu,
   onDragStart,
-  mediaPortalRef,
-  videoAspect,
   onOpenStageSettingsModal = () => {},
+  videoSlotRef,
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -62,79 +64,80 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   const handleContextMenu = onContextMenu || (() => {});
   const handleDragStart = onDragStart || (() => {});
 
-  const startResize = useCallback((type: ResizeType, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const container = containerRef.current;
-    if (!container) return;
-    
-    const rect = container.getBoundingClientRect();
-    
-    setResizeState({
-      type,
-      startX: e.clientX,
-      startY: e.clientY,
-      initialLeftWidth: sizes.leftWidth,
-      initialTopSplit: sizes.topSplit,
-      initialBottomHeight: sizes.bottomHeight,
-      containerWidth: rect.width,
-      containerHeight: rect.height,
-    });
-    
-    document.body.style.cursor = type === 'top-split' ? 'col-resize' : 
-                                 type === 'left-width' ? 'col-resize' : 'row-resize';
-    document.body.style.userSelect = 'none';
-  }, [sizes, containerRef]);
+  const startResize = useCallback(
+    (type: ResizeType, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!resizeState) return;
-    
-    const {
-      type,
-      startX,
-      startY,
-      initialLeftWidth,
-      initialTopSplit,
-      initialBottomHeight,
-      containerWidth,
-      containerHeight,
-    } = resizeState;
-    
-    const deltaX = e.clientX - startX;
-    const deltaY = e.clientY - startY;
-    
-    const updates: Partial<VerticalLayoutSizes> = {};
-    
-    switch (type) {
-      case 'left-width': {
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const newWidth = Math.min(75, Math.max(50, initialLeftWidth + deltaPercent));
-        updates.leftWidth = newWidth;
-        break;
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+
+      setResizeState({
+        type,
+        startX: e.clientX,
+        startY: e.clientY,
+        initialLeftWidth: sizes.leftWidth,
+        initialTopSplit: sizes.topSplit,
+        initialBottomHeight: sizes.bottomHeight,
+        containerWidth: rect.width,
+        containerHeight: rect.height,
+      });
+
+      document.body.style.cursor =
+        type === 'top-split' || type === 'left-width' ? 'col-resize' : 'row-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [sizes, containerRef],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!resizeState) return;
+
+      const {
+        type,
+        startX,
+        startY,
+        initialLeftWidth,
+        initialTopSplit,
+        initialBottomHeight,
+        containerWidth,
+        containerHeight,
+      } = resizeState;
+
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      const updates: Partial<VerticalLayoutSizes> = {};
+
+      switch (type) {
+        case 'left-width': {
+          const deltaPercent = (deltaX / containerWidth) * 100;
+          updates.leftWidth = Math.min(75, Math.max(50, initialLeftWidth + deltaPercent));
+          break;
+        }
+        case 'top-split': {
+          if (!leftPanelRef.current) return;
+          const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
+          const deltaPercent = (deltaX / leftPanelRect.width) * 100;
+          updates.topSplit = Math.min(60, Math.max(25, initialTopSplit + deltaPercent));
+          break;
+        }
+        case 'bottom-height': {
+          if (!leftPanelRef.current) return;
+          const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
+          const deltaPercent = (-deltaY / leftPanelRect.height) * 100;
+          updates.bottomHeight = Math.min(60, Math.max(20, initialBottomHeight + deltaPercent));
+          break;
+        }
       }
-      case 'top-split': {
-        if (!leftPanelRef.current) return;
-        const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
-        const deltaPercent = (deltaX / leftPanelRect.width) * 100;
-        const newSplit = Math.min(60, Math.max(25, initialTopSplit + deltaPercent));
-        updates.topSplit = newSplit;
-        break;
-      }
-      case 'bottom-height': {
-        if (!leftPanelRef.current) return;
-        const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
-        const deltaPercent = (-deltaY / leftPanelRect.height) * 100;
-        const newHeight = Math.min(60, Math.max(20, initialBottomHeight + deltaPercent));
-        updates.bottomHeight = newHeight;
-        break;
-      }
-    }
-    
-    if (Object.keys(updates).length > 0) {
-      onResize(updates);
-    }
-  }, [resizeState, onResize]);
+
+      if (Object.keys(updates).length > 0) onResize(updates);
+    },
+    [resizeState, onResize],
+  );
 
   const stopResize = useCallback(() => {
     setResizeState(null);
@@ -147,7 +150,6 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', stopResize);
     }
-    
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', stopResize);
@@ -157,27 +159,30 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   const topRowHeight = 100 - sizes.bottomHeight;
   const rightColumnWidth = 100 - sizes.leftWidth;
 
-  const handleTimelineDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    const fileId = e.dataTransfer.getData('text/plain');
-    const fileToLoad = context.importedFiles.find(f => f.id === fileId);
-    if (fileToLoad) {
-      await context.onFileActivate(fileToLoad);
-    }
-  }, [context.importedFiles, context.onFileActivate]);
+  const handleTimelineDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const fileId = e.dataTransfer.getData('text/plain');
+      const fileToLoad = context.importedFiles.find(f => f.id === fileId);
+      if (fileToLoad) {
+        await context.onFileActivate(fileToLoad);
+      }
+    },
+    [context.importedFiles, context.onFileActivate],
+  );
 
   return (
     <div className="flex flex-row w-full h-full p-2 gap-2">
-      {/* LEFT COLUMN */}
-      <div 
-        ref={leftPanelRef} 
+      <div
+        ref={leftPanelRef}
         className="flex flex-col gap-2 min-h-0"
         style={{ width: `${sizes.leftWidth}%` }}
       >
-        {/* TOP ROW: Media Panel + Edit Panel side by side */}
-        <div className="flex flex-row gap-2 min-h-0" style={{ height: `${topRowHeight}%` }}>
-          {/* Media Panel */}
-          <div 
+        <div
+          className="flex flex-row gap-2 min-h-0"
+          style={{ height: `${topRowHeight}%` }}
+        >
+          <div
             className={`min-w-0 ${isLeftPanelTopRowFilled ? 'hidden' : ''}`}
             style={{ width: `${sizes.topSplit}%` }}
           >
@@ -196,11 +201,10 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
           {!isLeftPanelTopRowFilled && (
             <ResizeHandle
               orientation="vertical"
-              onMouseDown={(e) => startResize('top-split', e)}
+              onMouseDown={e => startResize('top-split', e)}
             />
           )}
 
-          {/* Edit Panel */}
           <div className="flex-1 min-w-0">
             <LyricsSubtitlesPanel
               activeLeftPanelTab={context.activeLeftPanelTab}
@@ -245,18 +249,20 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
 
         <ResizeHandle
           orientation="horizontal"
-          onMouseDown={(e) => startResize('bottom-height', e)}
+          onMouseDown={e => startResize('bottom-height', e)}
         />
 
-        {/* BOTTOM ROW: Timeline Panel */}
-        <div className="min-h-0 overflow-hidden" style={{ height: `${sizes.bottomHeight}%` }}>
+        <div
+          className="min-h-0 overflow-hidden"
+          style={{ height: `${sizes.bottomHeight}%` }}
+        >
           <TimelinePanel
             currentTime={context.currentTime}
             mediaDuration={context.mediaDuration}
             isMediaLoaded={context.isMediaLoaded}
             formatTime={context.formatTime}
             handleSeek={context.handleSeek}
-            handleDragOver={(e) => e.preventDefault()}
+            handleDragOver={e => e.preventDefault()}
             handleDrop={handleTimelineDrop}
             activeFile={context.activeFile}
             volume={context.volume}
@@ -273,52 +279,36 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
             canUndo={context.canUndo}
             canRedo={context.canRedo}
             snapToGrid={context.settings.snapToGrid}
-            toggleSnapToGrid={() => context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)}
+            toggleSnapToGrid={() =>
+              context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
+            }
             addMarker={context.addMarker}
             markers={context.markers}
             analyserRef={context.analyserRef}
             isPlaying={context.isPlaying}
             waveformColor={context.settings.waveformColor}
             onClearTimelineAll={context.handleClearTimelineAll}
+            isVuOverlayEnabled={context.isVuOverlayEnabled}
+            onToggleVuOverlay={context.toggleVuOverlay}
           />
         </div>
       </div>
 
-      {/* Resizer between left and right columns */}
       {!isMaximizedVideo && (
         <ResizeHandle
           orientation="vertical"
-          onMouseDown={(e) => startResize('left-width', e)}
+          onMouseDown={e => startResize('left-width', e)}
         />
       )}
 
-      {/* RIGHT COLUMN: Video Preview */}
-      <div 
+      <div
         className="flex-1 flex flex-col min-w-0"
         style={{ width: `${rightColumnWidth}%` }}
       >
-        <VideoPreviewPanel
-          isVerticalLayout={true}
-          isPlaying={context.isPlaying}
-          togglePlayPause={context.togglePlayPause}
-          isMaximizedVideo={isMaximizedVideo}
-          setIsMaximizedVideo={onToggleMaximizeVideo}
-          mediaUrl={context.mediaUrl}
-          mediaElementRef={context.mediaElementRef}
-          currentTime={context.currentTime}
-          mediaDuration={context.mediaDuration}
-          activeFile={context.activeFile}
-          settings={context.settings}
-          currentSubtitleText={context.currentSubtitleText}
-          stageStyle={context.stageStyle}
-          lyricTextStyle={context.lyricTextStyle}
-          subtitleTextStyle={context.subtitleTextStyle}
-          overlayMode={context.activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
-          handleSeek={context.handleSeek}
-          mediaPortalRef={mediaPortalRef}
-          videoAspect={videoAspect}
-        />
+        {/* Video slot — the shared <VideoPreviewPanel> is positioned here */}
+        <div ref={videoSlotRef} className="flex-1 min-h-0" />
       </div>
     </div>
   );
 };
+

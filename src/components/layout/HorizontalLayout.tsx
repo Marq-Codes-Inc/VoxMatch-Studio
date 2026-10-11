@@ -1,9 +1,9 @@
+// src/components/layout/HorizontalLayout.tsx
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { ImportMediaPanel } from '../panels/ImportMediaPanel';
 import { LyricsSubtitlesPanel } from '../panels/SubtitlesLyricsEditPanel';
 import { TimelinePanel } from '../panels/TimelinePanel';
-import { VideoPreviewPanel } from '../panels/VideoPreviewPanel';
 import { ResizeHandle } from './ResizeHandle';
 import { ImportedMediaFile } from '../../types/types';
 
@@ -34,11 +34,15 @@ interface HorizontalLayoutProps {
   isMaximizedVideo: boolean;
   onToggleLeftPanelFilled: () => void;
   onToggleMaximizeVideo: () => void;
-  onContextMenu?: (e: React.MouseEvent | React.SyntheticEvent, file: ImportedMediaFile, targetElement?: HTMLElement) => void;
+  onContextMenu?: (
+    e: React.MouseEvent | React.SyntheticEvent,
+    file: ImportedMediaFile,
+    targetElement?: HTMLElement,
+  ) => void;
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
-  mediaPortalRef: React.RefObject<HTMLDivElement>;
-  videoAspect: number | null;
   onOpenStageSettingsModal?: () => void;
+  /** Ref where the shared <VideoPreviewPanel> should be positioned */
+  videoSlotRef: React.RefObject<HTMLDivElement>;
 }
 
 export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
@@ -51,9 +55,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   onToggleMaximizeVideo,
   onContextMenu,
   onDragStart,
-  mediaPortalRef,
-  videoAspect,
   onOpenStageSettingsModal = () => {},
+  videoSlotRef,
 }) => {
   const context = useProjectEditor();
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -62,76 +65,77 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   const handleContextMenu = onContextMenu || (() => {});
   const handleDragStart = onDragStart || (() => {});
 
-  const startResize = useCallback((type: ResizeType, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const container = containerRef.current;
-    if (!container) return;
-    
-    const rect = container.getBoundingClientRect();
-    
-    setResizeState({
-      type,
-      startX: e.clientX,
-      startY: e.clientY,
-      initialLeftWidth: sizes.leftWidth,
-      initialVideoHeight: sizes.videoHeight,
-      initialImportHeight: sizes.importHeight,
-      containerWidth: rect.width,
-      containerHeight: rect.height,
-    });
-    
-    document.body.style.cursor = type === 'left-width' ? 'col-resize' : 'row-resize';
-    document.body.style.userSelect = 'none';
-  }, [sizes, containerRef]);
+  const startResize = useCallback(
+    (type: ResizeType, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!resizeState) return;
-    
-    const {
-      type,
-      startX,
-      startY,
-      initialLeftWidth,
-      initialVideoHeight,
-      initialImportHeight,
-      containerWidth,
-      containerHeight,
-    } = resizeState;
-    
-    const deltaX = e.clientX - startX;
-    const deltaY = e.clientY - startY;
-    
-    const updates: Partial<HorizontalLayoutSizes> = {};
-    
-    switch (type) {
-      case 'left-width': {
-        const deltaPercent = (deltaX / containerWidth) * 100;
-        const newWidth = Math.min(60, Math.max(20, initialLeftWidth + deltaPercent));
-        updates.leftWidth = newWidth;
-        break;
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+
+      setResizeState({
+        type,
+        startX: e.clientX,
+        startY: e.clientY,
+        initialLeftWidth: sizes.leftWidth,
+        initialVideoHeight: sizes.videoHeight,
+        initialImportHeight: sizes.importHeight,
+        containerWidth: rect.width,
+        containerHeight: rect.height,
+      });
+
+      document.body.style.cursor = type === 'left-width' ? 'col-resize' : 'row-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [sizes, containerRef],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!resizeState) return;
+
+      const {
+        type,
+        startX,
+        startY,
+        initialLeftWidth,
+        initialVideoHeight,
+        initialImportHeight,
+        containerWidth,
+        containerHeight,
+      } = resizeState;
+
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      const updates: Partial<HorizontalLayoutSizes> = {};
+
+      switch (type) {
+        case 'left-width': {
+          const deltaPercent = (deltaX / containerWidth) * 100;
+          updates.leftWidth = Math.min(60, Math.max(20, initialLeftWidth + deltaPercent));
+          break;
+        }
+        case 'video-height': {
+          const deltaPercent = (deltaY / containerHeight) * 100;
+          updates.videoHeight = Math.min(80, Math.max(20, initialVideoHeight + deltaPercent));
+          break;
+        }
+        case 'left-panel-horizontal': {
+          if (!leftPanelRef.current) return;
+          const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
+          const deltaPercent = (deltaY / leftPanelRect.height) * 100;
+          updates.importHeight = Math.min(70, Math.max(20, initialImportHeight + deltaPercent));
+          break;
+        }
       }
-      case 'video-height': {
-        const deltaPercent = (deltaY / containerHeight) * 100;
-        const newHeight = Math.min(80, Math.max(20, initialVideoHeight + deltaPercent));
-        updates.videoHeight = newHeight;
-        break;
-      }
-      case 'left-panel-horizontal': {
-        if (!leftPanelRef.current) return;
-        const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
-        const deltaPercent = (deltaY / leftPanelRect.height) * 100;
-        const newHeight = Math.min(70, Math.max(20, initialImportHeight + deltaPercent));
-        updates.importHeight = newHeight;
-        break;
-      }
-    }
-    
-    if (Object.keys(updates).length > 0) {
-      onResize(updates);
-    }
-  }, [resizeState, onResize]);
+
+      if (Object.keys(updates).length > 0) onResize(updates);
+    },
+    [resizeState, onResize],
+  );
 
   const stopResize = useCallback(() => {
     setResizeState(null);
@@ -144,7 +148,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', stopResize);
     }
-    
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', stopResize);
@@ -154,20 +157,23 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   const importHeight = sizes.importHeight || 40;
   const lyricsHeight = isLeftPanelFilled ? 100 : 100 - importHeight;
 
-  const handleTimelineDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    const fileId = e.dataTransfer.getData('text/plain');
-    const fileToLoad = context.importedFiles.find(f => f.id === fileId);
-    if (fileToLoad) {
-      await context.onFileActivate(fileToLoad);
-    }
-  }, [context.importedFiles, context.onFileActivate]);
+  const handleTimelineDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const fileId = e.dataTransfer.getData('text/plain');
+      const fileToLoad = context.importedFiles.find(f => f.id === fileId);
+      if (fileToLoad) {
+        await context.onFileActivate(fileToLoad);
+      }
+    },
+    [context.importedFiles, context.onFileActivate],
+  );
 
   return (
     <div className="flex flex-row w-full h-full p-2 gap-2">
-      {/* LEFT PANEL */}
-      <div 
-        ref={leftPanelRef} 
+      {/* LEFT COLUMN */}
+      <div
+        ref={leftPanelRef}
         className={`flex flex-col gap-2 min-h-0 ${isMaximizedVideo ? 'hidden' : ''}`}
         style={{ width: `${sizes.leftWidth}%` }}
       >
@@ -188,7 +194,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
 
             <ResizeHandle
               orientation="horizontal"
-              onMouseDown={(e) => startResize('left-panel-horizontal', e)}
+              onMouseDown={e => startResize('left-panel-horizontal', e)}
             />
           </>
         )}
@@ -235,57 +241,40 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
         </div>
       </div>
 
-      {/* Resizer between left and right panels */}
       {!isMaximizedVideo && (
         <ResizeHandle
           orientation="vertical"
-          onMouseDown={(e) => startResize('left-width', e)}
+          onMouseDown={e => startResize('left-width', e)}
         />
       )}
 
-      {/* RIGHT PANEL */}
+      {/* RIGHT COLUMN */}
       <div className="flex flex-col flex-1 gap-2 min-h-0">
-        {/* Video Preview Panel */}
-        <div style={{ height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%` }} className="min-h-0">
-          <VideoPreviewPanel
-            isVerticalLayout={false}
-            isPlaying={context.isPlaying}
-            togglePlayPause={context.togglePlayPause}
-            isMaximizedVideo={isMaximizedVideo}
-            setIsMaximizedVideo={onToggleMaximizeVideo}
-            mediaUrl={context.mediaUrl}
-            mediaElementRef={context.mediaElementRef}
-            currentTime={context.currentTime}
-            mediaDuration={context.mediaDuration}
-            activeFile={context.activeFile}
-            settings={context.settings}
-            currentSubtitleText={context.currentSubtitleText}
-            stageStyle={context.stageStyle}
-            lyricTextStyle={context.lyricTextStyle}
-            subtitleTextStyle={context.subtitleTextStyle}
-            overlayMode={context.activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
-            handleSeek={context.handleSeek}
-            mediaPortalRef={mediaPortalRef}
-            videoAspect={videoAspect}
-          />
-        </div>
+        {/* Video slot — the shared <VideoPreviewPanel> is positioned here */}
+        <div
+          ref={videoSlotRef}
+          style={{ height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%` }}
+          className="min-h-0"
+        />
 
-        {/* Resizer and Timeline */}
         {!isMaximizedVideo && (
           <>
             <ResizeHandle
               orientation="horizontal"
-              onMouseDown={(e) => startResize('video-height', e)}
+              onMouseDown={e => startResize('video-height', e)}
             />
 
-            <div className="min-h-0 overflow-hidden" style={{ height: `${100 - sizes.videoHeight}%` }}>
+            <div
+              className="min-h-0 overflow-hidden"
+              style={{ height: `${100 - sizes.videoHeight}%` }}
+            >
               <TimelinePanel
                 currentTime={context.currentTime}
                 mediaDuration={context.mediaDuration}
                 isMediaLoaded={context.isMediaLoaded}
                 formatTime={context.formatTime}
                 handleSeek={context.handleSeek}
-                handleDragOver={(e) => e.preventDefault()}
+                handleDragOver={e => e.preventDefault()}
                 handleDrop={handleTimelineDrop}
                 activeFile={context.activeFile}
                 volume={context.volume}
@@ -302,13 +291,17 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 canUndo={context.canUndo}
                 canRedo={context.canRedo}
                 snapToGrid={context.settings.snapToGrid}
-                toggleSnapToGrid={() => context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)}
+                toggleSnapToGrid={() =>
+                  context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
+                }
                 addMarker={context.addMarker}
                 markers={context.markers}
                 analyserRef={context.analyserRef}
                 isPlaying={context.isPlaying}
                 waveformColor={context.settings.waveformColor}
                 onClearTimelineAll={context.handleClearTimelineAll}
+                isVuOverlayEnabled={context.isVuOverlayEnabled}
+                onToggleVuOverlay={context.toggleVuOverlay}
               />
             </div>
           </>

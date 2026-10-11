@@ -39,8 +39,8 @@ export const DEFAULT_STAGE_STYLE: StageStyle = {
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
   fontFamily: 'Inter',
-  fontSize: 32,
-  fontWeight: 600,
+  fontSize: 25,
+  fontWeight: 500,
   italic: false,
   uppercase: false,
   letterSpacing: 0,
@@ -48,7 +48,7 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   textColor: '#FFFFFF',
   withBg: true,
   bgColor: '#000000',
-  bgOpacity: 0.6,
+  bgOpacity: 0.0,
   padding: 12,
   borderRadius: 8,
   textAlign: 'center',

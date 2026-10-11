@@ -305,7 +305,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
         className="flex-1 flex flex-col min-w-0"
         style={{ width: `${rightColumnWidth}%` }}
       >
-        {/* Video slot — the shared <VideoPreviewPanel> is positioned here */}
+        {/* Video slot */}
         <div ref={videoSlotRef} className="flex-1 min-h-0" />
       </div>
     </div>

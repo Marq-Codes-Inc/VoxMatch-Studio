@@ -14,9 +14,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 
-// ─────────────────────────────────────────────────────────────
 // Types
-// ─────────────────────────────────────────────────────────────
 
 interface FileMetadata {
   name: string;
@@ -36,9 +34,7 @@ interface SaveResult {
   path?: string;
 }
 
-// ─────────────────────────────────────────────────────────────
 // State
-// ─────────────────────────────────────────────────────────────
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
@@ -52,13 +48,10 @@ const VXM_EXTENSION = 'vxm';
 // A .vxm path queued for the renderer (from cold-start arg or OS event)
 let pendingProjectFile: string | null = null;
 
-// ─────────────────────────────────────────────────────────────
 // File-open helpers
-// ─────────────────────────────────────────────────────────────
 
-/**
- * Extract a .vxm path from a command-line args array.
- */
+/* Extract a .vxm path from a command-line args array. */
+
 function extractVxmPathFromArgs(args: string[]): string | null {
   for (const arg of args) {
     if (arg.startsWith('-')) continue;
@@ -67,10 +60,8 @@ function extractVxmPathFromArgs(args: string[]): string | null {
   return null;
 }
 
-/**
- * Queue a .vxm file to open and try to deliver it immediately
- * if the renderer is already loaded.
- */
+/* Queue a .vxm file to open and try to deliver it immediately if the renderer is already loaded. */
+
 function queueProjectFileOpen(filePath: string): void {
   console.log(`📂 Queueing .vxm open: ${filePath}`);
   pendingProjectFile = filePath;
@@ -87,9 +78,7 @@ function deliverPendingProjectFile(): void {
   pendingProjectFile = null;
 }
 
-// ─────────────────────────────────────────────────────────────
 // Custom protocol for streaming local media into <video>/<audio>
-// ─────────────────────────────────────────────────────────────
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -104,9 +93,7 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-// ─────────────────────────────────────────────────────────────
 // GPU / Performance
-// ─────────────────────────────────────────────────────────────
 
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-gpu-compositing');
@@ -115,9 +102,7 @@ app.commandLine.appendSwitch('disable-accelerated-video-encode');
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('enable-smooth-scrolling');
 
-// ─────────────────────────────────────────────────────────────
 // Splash
-// ─────────────────────────────────────────────────────────────
 
 function createSplashScreen(): void {
   const iconPath = validateIconPath();
@@ -159,9 +144,7 @@ function createSplashScreen(): void {
   splashWindow.on('closed', () => (splashWindow = null));
 }
 
-// ─────────────────────────────────────────────────────────────
 // Icon
-// ─────────────────────────────────────────────────────────────
 
 function validateIconPath(): string | null {
   if (!fs.existsSync(ICON_PATH)) return null;
@@ -173,9 +156,7 @@ function validateIconPath(): string | null {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Main window
-// ─────────────────────────────────────────────────────────────
 
 function createWindow(): void {
   const preloadPath = path.join(__dirname, 'preload.js');
@@ -282,9 +263,7 @@ function createWindow(): void {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
 // Lifecycle
-// ─────────────────────────────────────────────────────────────
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -357,9 +336,7 @@ if (!gotTheLock) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────
 // Utilities
-// ─────────────────────────────────────────────────────────────
 
 function getMimeTypeFromExtension(ext: string): string {
   const mimeTypes: Record<string, string> = {
@@ -393,9 +370,7 @@ function ensureVxmExtension(filePath: string): string {
     : `${filePath}.${VXM_EXTENSION}`;
 }
 
-// ─────────────────────────────────────────────────────────────
 // Dialog IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('dialog:openFile', async (_event, options: any = {}) => {
   if (!mainWindow) throw new Error('No active window');
@@ -440,9 +415,7 @@ ipcMain.handle('dialog:selectSaveLocation', async (_event, options: any = {}) =>
   return result.canceled ? null : result.filePath;
 });
 
-// ─────────────────────────────────────────────────────────────
 // File IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle(
   'file:getMetadata',
@@ -481,10 +454,8 @@ ipcMain.handle(
   },
 );
 
-/**
- * Returns a `media://` URL that the renderer can hand directly to
- * <video>/<audio> src. Streams from disk without copying.
- */
+/* Returns a `media://` URL that the renderer can hand directly */
+
 ipcMain.handle('file:getMediaUrl', async (_event, filePath: string) => {
   if (!validateFilePath(filePath)) {
     throw new Error(`File not found or inaccessible: ${filePath}`);
@@ -493,9 +464,7 @@ ipcMain.handle('file:getMediaUrl', async (_event, filePath: string) => {
   return `media://local/${encoded}`;
 });
 
-// ─────────────────────────────────────────────────────────────
 // Project .vxm IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('file:loadProject', async (_event, filePath: string): Promise<string> => {
   if (!validateFilePath(filePath)) {
@@ -530,9 +499,7 @@ ipcMain.handle(
   },
 );
 
-// ─────────────────────────────────────────────────────────────
 // Export IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('export:video', async (_event, options: any = {}): Promise<SaveResult> => {
   if (!mainWindow) throw new Error('No active window');
@@ -561,9 +528,7 @@ ipcMain.handle('export:subtitles', async (_event, options: any = {}): Promise<Sa
   return { success: !result.canceled, path: result.filePath };
 });
 
-// ─────────────────────────────────────────────────────────────
 // DevTools IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('dev:openDevTools', () => {
   if (isDev && mainWindow && !mainWindow.isDestroyed()) {
@@ -585,9 +550,7 @@ ipcMain.handle('dev:toggleDevTools', () => {
   return false;
 });
 
-// ─────────────────────────────────────────────────────────────
 // App info IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);
@@ -600,9 +563,7 @@ ipcMain.handle('app:notifyReady', () => {
   return true;
 });
 
-// ─────────────────────────────────────────────────────────────
 // Window control IPC
-// ─────────────────────────────────────────────────────────────
 
 ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => {
@@ -614,9 +575,7 @@ ipcMain.on('window:toggleFullscreen', () => {
   if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 
-// ─────────────────────────────────────────────────────────────
 // Error handling
-// ─────────────────────────────────────────────────────────────
 
 process.on('uncaughtException', error => {
   console.error('❌ Uncaught Exception:', error);

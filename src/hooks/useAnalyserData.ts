@@ -2,24 +2,12 @@
 import { useEffect, useRef } from 'react';
 
 export interface AnalyserFrame {
-  /** Time-domain samples, 0..255, length = fftSize/2 */
   waveform: Uint8Array<ArrayBuffer>;
-  /** Frequency-domain magnitudes, 0..255, length = fftSize/2 */
   frequency: Uint8Array<ArrayBuffer>;
-  /** Overall RMS in 0..1 */
   rms: number;
-  /** Peak in 0..1 */
   peak: number;
 }
 
-/**
- * Subscribe to an AnalyserNode and receive frames via a callback on every
- * animation frame. Does NOT call setState — consumers draw imperatively to
- * a canvas. This is the correct pattern for 60fps visualization and avoids
- * the "Maximum update depth exceeded" warning.
- *
- * Set `enabled` to `false` to stop the loop without unmounting.
- */
 export function useAnalyserData(
   analyserRef: React.MutableRefObject<AnalyserNode | null>,
   enabled: boolean,
@@ -73,3 +61,4 @@ export function useAnalyserData(
     };
   }, [analyserRef, enabled]);
 }
+

@@ -91,7 +91,7 @@ export interface ProjectEditorContextValue {
   audioElementRef: React.RefObject<HTMLAudioElement>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
 
-  // ── Audio overlay ──────────────────────────────────────
+  // Audio overlay
   isVuOverlayEnabled: boolean;
   toggleVuOverlay: () => void;
 }

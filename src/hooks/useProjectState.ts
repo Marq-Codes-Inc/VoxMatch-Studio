@@ -303,11 +303,6 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     } : f));
   }, []);
 
-  // ─────────────────────────────────────────────────────────
-  // Compute the current overlay text from whichever track is
-  // active (lyrics or subtitles). Called from useProjectEditor on
-  // every playhead move.
-  // ─────────────────────────────────────────────────────────
   const updateCurrentSubtitleText = useCallback(
     (currentTime: number) => {
       const source = activeLeftPanelTab === 'lyrics' ? lyrics : subtitles;

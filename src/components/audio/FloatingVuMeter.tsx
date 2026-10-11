@@ -50,7 +50,7 @@ export const FloatingVuMeter: React.FC<FloatingVuMeterProps> = ({
     } catch {}
   }, [state]);
 
-  // ── Drag ──────────────────────────────────────────────
+  // Drag
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -111,7 +111,7 @@ export const FloatingVuMeter: React.FC<FloatingVuMeterProps> = ({
     [state.x, state.y],
   );
 
-  // ── Resize ────────────────────────────────────────────
+  // Resize
   const resizeRef = useRef<{
     startX: number;
     startY: number;
@@ -192,7 +192,7 @@ export const FloatingVuMeter: React.FC<FloatingVuMeterProps> = ({
           state.collapsed ? 'rounded-b-lg' : 'border-b border-app-border'
         }`}
       >
-        {/* Six-dot handle — grab cursor only here */}
+        {/* Six-dot handle */}
         <div
           className="p-0.5 rounded hover:bg-app-gray-light/40 transition-colors"
           style={{ cursor: handleCursor }}

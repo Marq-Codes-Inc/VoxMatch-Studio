@@ -15,6 +15,10 @@ const electronAPI = {
   loadAudioFileContent: (filePath: string) =>
     ipcRenderer.invoke('file:loadAudioContent', filePath),
 
+  // NEW — read any text file (used for .srt/.vtt/.lrc/.ass imports)
+  readTextFile: (filePath: string) =>
+    ipcRenderer.invoke('file:readText', filePath),
+
   // Project (.vxm)
   loadProjectFile: (filePath: string) =>
     ipcRenderer.invoke('file:loadProject', filePath),
@@ -26,13 +30,6 @@ const electronAPI = {
   exportSubtitles: (options: any) =>
     ipcRenderer.invoke('export:subtitles', options),
 
-  /**
-   * Write text to a file with progress events.
-   * If no filePath is passed, a save dialog is shown.
-   *
-   * Emits `export:progress` events that the renderer can subscribe to via
-   * `on('export:progress', handler)`.
-   */
   writeTextFile: (options: {
     content: string;
     filePath?: string;
@@ -64,3 +61,4 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
 window.dispatchEvent(new Event('electron-api-ready'));
 console.log('✅ Preload script loaded');
+

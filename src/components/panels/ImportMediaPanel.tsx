@@ -31,15 +31,16 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessingDrop, setIsProcessingDrop] = useState(false);
 
-  const videoCount = importedFiles.filter(f => f.type.startsWith('video')).length;
-  const audioCount = importedFiles.filter(f => f.type.startsWith('audio')).length;
+  const videoCount = importedFiles.filter((f) => f.type.startsWith('video')).length;
+  const audioCount = importedFiles.filter((f) => f.type.startsWith('audio')).length;
   const totalCount = importedFiles.length;
 
   const formatFileSize = (bytes: number): string => {
     if (!bytes || bytes === 0) return '0 B';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
@@ -55,48 +56,58 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
     setIsDragOver(false);
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    const mediaFiles = files.filter(file => {
-      const ext = file.name.toLowerCase().split('.').pop();
-      const validExtensions = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'webm', 'mkv'];
-      return validExtensions.includes(ext || '') || 
-             file.type.startsWith('audio/') || 
-             file.type.startsWith('video/');
-    });
+      const files = Array.from(e.dataTransfer.files);
+      const accepted = files.filter((file) => {
+        const ext = file.name.toLowerCase().split('.').pop() || '';
+        const validExtensions = [
+          'mp3', 'wav', 'm4a', 'ogg', 'flac', 'mp4', 'mov', 'webm', 'mkv',
+          'srt', 'vtt', 'lrc', 'ass', 'ssa',
+        ];
+        return (
+          validExtensions.includes(ext) ||
+          file.type.startsWith('audio/') ||
+          file.type.startsWith('video/')
+        );
+      });
 
-    if (mediaFiles.length === 0) {
-      alert('Please drop audio or video files only.');
-      return;
-    }
-
-    setIsProcessingDrop(true);
-    try {
-      if (onFilesDropped) {
-        await onFilesDropped(mediaFiles);
-      } else {
-        handleOpenFile();
+      if (accepted.length === 0) {
+        alert('Please drop audio, video, or subtitle files.');
+        return;
       }
-    } catch (error) {
-      console.error('Error processing dropped files:', error);
-      alert('Failed to process some files. Please try again.');
-    } finally {
-      setIsProcessingDrop(false);
-    }
-  }, [onFilesDropped, handleOpenFile]);
+
+      setIsProcessingDrop(true);
+      try {
+        if (onFilesDropped) {
+          await onFilesDropped(accepted);
+        } else {
+          handleOpenFile();
+        }
+      } catch (error) {
+        console.error('Error processing dropped files:', error);
+        alert('Failed to process some files. Please try again.');
+      } finally {
+        setIsProcessingDrop(false);
+      }
+    },
+    [onFilesDropped, handleOpenFile],
+  );
 
   const getFileIcon = (file: ImportedMediaFile) => {
-    if (file.type.startsWith('video')) return <Film size={16} className="text-blue-400" />;
-    if (file.type.startsWith('audio')) return <Music size={16} className="text-green-400" />;
+    if (file.type.startsWith('video'))
+      return <Film size={16} className="text-blue-400" />;
+    if (file.type.startsWith('audio'))
+      return <Music size={16} className="text-green-400" />;
     return <Upload size={16} />;
   };
 
   return (
-    <div 
+    <div
       className={`bg-app-surface p-4 rounded-lg border transition-colors flex flex-col h-full import-media-panel min-h-0 ${
         isDragOver ? 'border-primary border-2 bg-primary/5' : 'border-app-border'
       }`}
@@ -116,22 +127,30 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
         >
           {isProcessingDrop ? (
             <>
-              <Loader className="animate-spin mx-auto mb-2 text-primary" size={32} />
+              <Loader
+                className="animate-spin mx-auto mb-2 text-primary"
+                size={32}
+              />
               <p className="mb-2 text-sm">Processing files...</p>
             </>
           ) : (
             <>
               <Upload className="mx-auto mb-3 text-app-gray" size={32} />
-              <p className="mb-2 text-sm font-medium">Drag & drop media files here</p>
+              <p className="mb-2 text-sm font-medium">
+                Drag & drop media or subtitle files here
+              </p>
               <p className="mb-2 text-xs text-app-gray">or</p>
-              <button 
-                className="mt-2 px-4 py-1.5 bg-primary text-white rounded-md hover:bg-primary-hover text-sm hover:border-primary cursor-pointer transition-colors" 
+              <button
+                className="mt-2 px-4 py-1.5 bg-primary text-white rounded-md hover:bg-primary-hover text-sm hover:border-primary cursor-pointer transition-colors"
                 onClick={handleOpenFile}
               >
                 Browse Files
               </button>
               <p className="mt-3 text-xs text-app-gray">
                 Supported: MP3, WAV, M4A, OGG, FLAC, MP4, MOV, WebM, MKV
+              </p>
+              <p className="mt-1 text-xs text-app-gray">
+                Subtitles: SRT, VTT, LRC, ASS
               </p>
             </>
           )}
@@ -152,8 +171,12 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
           </div>
 
           <div className="flex justify-start gap-4 mb-3 flex-shrink-0 text-xs font-mono text-app-gray bg-app-gray-light/50 p-2 rounded-md">
-            <span className="flex items-center gap-1"><Film size={14} className="text-blue-400" /> {videoCount} Video</span>
-            <span className="flex items-center gap-1"><Music size={14} className="text-green-400" /> {audioCount} Audio</span>
+            <span className="flex items-center gap-1">
+              <Film size={14} className="text-blue-400" /> {videoCount} Video
+            </span>
+            <span className="flex items-center gap-1">
+              <Music size={14} className="text-green-400" /> {audioCount} Audio
+            </span>
           </div>
 
           {isDragOver && (
@@ -176,55 +199,67 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
               const isLoaded = file.loaded;
 
               return (
-                <li 
+                <li
                   key={file.id}
                   onContextMenu={(e) => handleContextMenu(e, file)}
                   onDoubleClick={async (e) => {
                     e.stopPropagation();
-                    console.log("🖱️ Double-click activating file:", file.name);
+                    console.log('🖱️ Double-click activating file:', file.name);
                     if (!isLoading && onFileActivate) {
                       await onFileActivate(file);
                     }
                   }}
                   className={`flex items-center justify-between p-2.5 rounded-md border text-sm transition-all cursor-default ${
                     isActive
-                      ? "bg-primary/20 text-app-text border-primary shadow-sm"
-                      : "bg-app-gray-light/50 text-app-text border-app-border hover:bg-app-gray-light hover:border-app-border-light"
+                      ? 'bg-primary/20 text-app-text border-primary shadow-sm'
+                      : 'bg-app-gray-light/50 text-app-text border-app-border hover:bg-app-gray-light hover:border-app-border-light'
                   } ${isLoading ? 'opacity-70' : ''}`}
                 >
                   <div
                     draggable={!isLoading}
                     onDragStart={(e) => {
                       if (!isLoading) {
-                        console.log("🎯 Dragging file:", file.name);
+                        console.log('🎯 Dragging file:', file.name);
                         e.dataTransfer.setData('text/plain', file.id);
                         e.dataTransfer.effectAllowed = 'copy';
                         handleDragStart(e, file);
                       }
                     }}
-                    className={`flex-1 pr-2 truncate flex items-center ${!isLoading ? 'cursor-grab' : 'cursor-default'}`}
+                    className={`flex-1 pr-2 truncate flex items-center ${
+                      !isLoading ? 'cursor-grab' : 'cursor-default'
+                    }`}
                   >
                     {isActive && (
-                      <span className="w-2 h-2 rounded-full bg-green-500 mr-2 flex-shrink-0 animate-pulse" 
-                            title="Active in timeline" />
+                      <span
+                        className="w-2 h-2 rounded-full bg-green-500 mr-2 flex-shrink-0 animate-pulse"
+                        title="Active in timeline"
+                      />
                     )}
                     {!isLoaded && !isLoading && (
-                      <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2 flex-shrink-0" 
-                            title="Not loaded - double-click to load" />
+                      <span
+                        className="w-2 h-2 rounded-full bg-yellow-500 mr-2 flex-shrink-0"
+                        title="Not loaded - double-click to load"
+                      />
                     )}
-                    
-                    <span className="mr-2 flex-shrink-0">{getFileIcon(file)}</span>
-                    
+
+                    <span className="mr-2 flex-shrink-0">
+                      {getFileIcon(file)}
+                    </span>
+
                     <div className="flex-1 min-w-0">
-                      <span className="truncate block text-sm">{file.name}</span>
+                      <span className="truncate block text-sm">
+                        {file.name}
+                      </span>
                       <span className="text-xs text-app-gray block truncate">
                         {formatFileSize(file.size)}
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-1 flex-shrink-0">
-                    {isLoading && <Loader className="animate-spin text-primary" size={16} />}
+                    {isLoading && (
+                      <Loader className="animate-spin text-primary" size={16} />
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -240,7 +275,7 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
               );
             })}
           </ul>
-          
+
           <div className="flex-shrink-0 mt-2 pt-2 border-t border-app-border text-xs text-app-gray text-center">
             Double-click to load • Drag to timeline
           </div>

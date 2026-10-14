@@ -82,7 +82,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Shared video slot rect — position the persistent VideoPreviewPanel here
   const videoSlotRef = useRef<HTMLDivElement>(null);
   const [videoSlotRect, setVideoSlotRect] = useState<VideoSlotRect>({
     left: 0,
@@ -218,7 +217,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     isFileInfoModalOpen ||
     isStageSettingsModalOpen;
 
-  // Keep the shared VideoPreviewPanel aligned with its slot
   useLayoutEffect(() => {
     const slot = videoSlotRef.current;
     const container = containerRef.current;
@@ -408,6 +406,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       analyserRef,
       isVuOverlayEnabled,
       toggleVuOverlay,
+      importSubtitleFile: editor.importSubtitleFile,
     }),
     [
       isPlaying,
@@ -476,6 +475,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       analyserRef,
       isVuOverlayEnabled,
       toggleVuOverlay,
+      editor.importSubtitleFile,
     ],
   );
 
@@ -484,7 +484,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       JSON.stringify({
         lyrics,
         subtitles,
-        mediaFiles: importedFiles.map(f => ({
+        mediaFiles: importedFiles.map((f) => ({
           id: f.id,
           name: f.name,
           path: f.path,
@@ -576,7 +576,10 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   useEffect(() => {
     onThemeChange(settings.theme);
     document.documentElement.setAttribute('data-theme', settings.theme);
-    document.documentElement.style.setProperty('--primary', settings.primaryColor);
+    document.documentElement.style.setProperty(
+      '--primary',
+      settings.primaryColor,
+    );
     document.documentElement.style.setProperty(
       '--primary-hover',
       `${settings.primaryColor}E6`,
@@ -610,14 +613,14 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 
   useEffect(() => {
     const handleClickOutside = () =>
-      editor.setContextMenu(prev => ({ ...prev, visible: false }));
+      editor.setContextMenu((prev) => ({ ...prev, visible: false }));
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [editor.setContextMenu]);
 
   const handleHorizontalResize = useCallback(
     (updates: Partial<typeof horizontalSizes>) => {
-      setHorizontalSizes(prev => ({ ...prev, ...updates }));
+      setHorizontalSizes((prev) => ({ ...prev, ...updates }));
       markAsUnsaved();
     },
     [markAsUnsaved],
@@ -625,7 +628,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 
   const handleVerticalResize = useCallback(
     (updates: Partial<typeof verticalSizes>) => {
-      setVerticalSizes(prev => ({ ...prev, ...updates }));
+      setVerticalSizes((prev) => ({ ...prev, ...updates }));
       markAsUnsaved();
     },
     [markAsUnsaved],
@@ -641,9 +644,9 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept="audio/*,video/*"
+          accept="audio/*,video/*,.srt,.vtt,.lrc,.ass,.ssa"
           multiple
-          onChange={e => {
+          onChange={(e) => {
             const files = Array.from(e.target.files || []);
             if (files.length) handleFilesDropped(files);
             e.target.value = '';
@@ -692,7 +695,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             />
           )}
 
-          {/* VideoPreviewPanel */}
           <div
             className="absolute z-10"
             style={{
@@ -719,7 +721,9 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
               stageStyle={stageStyle}
               lyricTextStyle={lyricTextStyle}
               subtitleTextStyle={subtitleTextStyle}
-              overlayMode={activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
+              overlayMode={
+                activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'
+              }
               handleSeek={handleSeek}
               videoAspect={videoAspect}
               isMediaLoaded={isMediaLoaded}
@@ -754,6 +758,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             }
             file={activeFile || null}
             project={project}
+            mediaElementRef={mediaElementRef}
             onClose={() => setIsExportModalOpen(false)}
           />
         </Modal>
@@ -766,7 +771,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
         >
           <div className="flex h-[calc(90vh-100px)]">
             <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
-              {preferenceSections.map(section => (
+              {preferenceSections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => setActivePreferenceSection(section.id)}
@@ -798,7 +803,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
         >
           <div className="flex h-[calc(90vh-100px)]">
             <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
-              {helpSections.map(section => (
+              {helpSections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => setActiveHelpSection(section.id)}
@@ -838,7 +843,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
         >
           <StageSettingsContent
             stageStyle={stageStyle}
-            setStageStyle={newStyle => {
+            setStageStyle={(newStyle) => {
               setStageStyle(newStyle);
               markAsUnsaved();
             }}
@@ -858,7 +863,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   );
 };
 
-export const ProjectEditor: React.FC<ProjectEditorProps> = props => (
+export const ProjectEditor: React.FC<ProjectEditorProps> = (props) => (
   <ProjectEditorContent {...props} />
 );
-

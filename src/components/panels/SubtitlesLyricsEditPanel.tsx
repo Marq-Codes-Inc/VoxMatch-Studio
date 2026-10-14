@@ -1,3 +1,4 @@
+// src/components/panels/SubtitlesLyricsEditPanel.tsx
 import {
   Type,
   FileText,
@@ -16,6 +17,7 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  Upload,
 } from 'lucide-react';
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { LyricLine, TextStyle, AppSettings } from '../../types/types';
@@ -28,6 +30,7 @@ import {
   getTimingConfigForLanguage,
   DEFAULT_CONFIG,
 } from '../../utils/timingUtils';
+import type { ImportSubtitleResult } from '../../utils/subtitleImport';
 
 // --- Props ---
 interface LyricsSubtitlesPanelProps {
@@ -43,12 +46,12 @@ interface LyricsSubtitlesPanelProps {
   handleLyricChange: (
     id: string,
     field: 'text' | 'startTime' | 'endTime',
-    value: string | number
+    value: string | number,
   ) => void;
   handleSubtitleChange: (
     id: string,
     field: 'text' | 'startTime' | 'endTime',
-    value: string | number
+    value: string | number,
   ) => void;
 
   handleAddSubtitle: () => void;
@@ -87,6 +90,16 @@ interface LyricsSubtitlesPanelProps {
   mediaDuration?: number;
 
   settings?: AppSettings;
+
+  /**
+   * Import a subtitle/lyrics file into the active track.
+   * Returns metadata about the import (format, clip counts, warnings),
+   * or `null` if the file could not be parsed.
+   */
+  onImportSubtitleFile?: (
+    file: File,
+    options?: { replace?: boolean },
+  ) => Promise<ImportSubtitleResult | null>;
 }
 
 // --- Sub-component: TabNav ---
@@ -115,7 +128,7 @@ const TabNav = ({
   </div>
 );
 
-// --- Sub-component: TextStyleControls (unchanged, but included for completeness) ---
+// --- Sub-component: TextStyleControls ---
 export const TextStyleControls: React.FC<{
   label: string;
   style: TextStyle;
@@ -145,7 +158,10 @@ export const TextStyleControls: React.FC<{
   const update = <K extends keyof TextStyle>(k: K, v: TextStyle[K]) =>
     onChange({ ...style, [k]: v });
 
-  const alignmentGrid: { v: TextStyle['verticalAlign']; h: TextStyle['horizontalAlign'] }[] = [
+  const alignmentGrid: {
+    v: TextStyle['verticalAlign'];
+    h: TextStyle['horizontalAlign'];
+  }[] = [
     { v: 'flex-start', h: 'flex-start' },
     { v: 'flex-start', h: 'center' },
     { v: 'flex-start', h: 'flex-end' },
@@ -193,7 +209,13 @@ export const TextStyleControls: React.FC<{
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Slider label="Width" value={style.width} min={10} max={100} onChange={(v) => update('width', v)} />
+        <Slider
+          label="Width"
+          value={style.width}
+          min={10}
+          max={100}
+          onChange={(v) => update('width', v)}
+        />
         <Slider
           label="X Offset"
           value={style.position.x}
@@ -240,9 +262,21 @@ export const TextStyleControls: React.FC<{
           onChange={(_, value) => update('fontWeight', Number(value))}
         />
 
-        <Slider label="Font Size" value={style.fontSize} min={8} max={100} onChange={(v) => update('fontSize', v)} />
+        <Slider
+          label="Font Size"
+          value={style.fontSize}
+          min={8}
+          max={100}
+          onChange={(v) => update('fontSize', v)}
+        />
 
-        <Slider label="Line Height" value={style.lineHeight} min={10} max={200} onChange={(v) => update('lineHeight', v)} />
+        <Slider
+          label="Line Height"
+          value={style.lineHeight}
+          min={10}
+          max={200}
+          onChange={(v) => update('lineHeight', v)}
+        />
 
         <Slider
           label="Letter Spacing"
@@ -262,7 +296,9 @@ export const TextStyleControls: React.FC<{
             { value: 'center', label: 'Center' },
             { value: 'right', label: 'Right' },
           ]}
-          onChange={(_, value) => update('textAlign', value as TextStyle['textAlign'])}
+          onChange={(_, value) =>
+            update('textAlign', value as TextStyle['textAlign'])
+          }
         />
       </div>
 
@@ -302,9 +338,21 @@ export const TextStyleControls: React.FC<{
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Slider label="Padding" value={style.padding} min={0} max={64} onChange={(v) => update('padding', v)} />
+        <Slider
+          label="Padding"
+          value={style.padding}
+          min={0}
+          max={64}
+          onChange={(v) => update('padding', v)}
+        />
 
-        <Slider label="Border Radius" value={style.borderRadius} min={0} max={64} onChange={(v) => update('borderRadius', v)} />
+        <Slider
+          label="Border Radius"
+          value={style.borderRadius}
+          min={0}
+          max={64}
+          onChange={(v) => update('borderRadius', v)}
+        />
       </div>
     </div>
   );
@@ -346,13 +394,19 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   currentTime = 0,
   mediaDuration = 300,
   settings,
+  onImportSubtitleFile,
 }) => {
   const lyricsListRef = useRef<HTMLDivElement>(null);
   const subtitlesListRef = useRef<HTMLDivElement>(null);
   const prevLyricsCountRef = useRef(lyrics.length);
   const prevSubtitlesCountRef = useRef(subtitles.length);
 
-  const [selectedLyricIds, setSelectedLyricIds] = useState<Set<string>>(new Set());
+  const subtitleFileInputRef = useRef<HTMLInputElement>(null);
+  const lyricsFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedLyricIds, setSelectedLyricIds] = useState<Set<string>>(
+    new Set(),
+  );
   const toggleLyricSelection = useCallback((id: string) => {
     setSelectedLyricIds((prev) => {
       const next = new Set(prev);
@@ -368,10 +422,14 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   const [lyricsPasteText, setLyricsPasteText] = useState('');
   const [subtitlesPasteText, setSubtitlesPasteText] = useState('');
 
-  const [isLyricsTextareaExpanded, setIsLyricsTextareaExpanded] = useState(true);
-  const [isSubtitlesTextareaExpanded, setIsSubtitlesTextareaExpanded] = useState(true);
+  const [isLyricsTextareaExpanded, setIsLyricsTextareaExpanded] =
+    useState(true);
+  const [isSubtitlesTextareaExpanded, setIsSubtitlesTextareaExpanded] =
+    useState(true);
 
-  const [estimatedClips, setEstimatedClips] = useState<Array<{ text: string; duration: number }>>([]);
+  const [estimatedClips, setEstimatedClips] = useState<
+    Array<{ text: string; duration: number }>
+  >([]);
   const [showPreview, setShowPreview] = useState(false);
 
   const textareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
@@ -379,25 +437,32 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   const lastScrolledClipIdRef = useRef<string | null>(null);
 
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'above' | 'below' } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    id: string;
+    position: 'above' | 'below';
+  } | null>(null);
 
-  // Copy/Paste
   const [copiedClip, setCopiedClip] = useState<LyricLine | null>(null);
 
   const sortedSubtitles = useMemo(
     () => [...subtitles].sort((a, b) => a.startTime - b.startTime),
-    [subtitles]
+    [subtitles],
   );
   const sortedLyrics = useMemo(
     () => [...lyrics].sort((a, b) => a.startTime - b.startTime),
-    [lyrics]
+    [lyrics],
   );
 
-  const activeList = activeLeftPanelTab === 'subtitles' ? sortedSubtitles : sortedLyrics;
-  const listRef = activeLeftPanelTab === 'subtitles' ? subtitlesListRef : lyricsListRef;
+  const activeList =
+    activeLeftPanelTab === 'subtitles' ? sortedSubtitles : sortedLyrics;
+  const listRef =
+    activeLeftPanelTab === 'subtitles' ? subtitlesListRef : lyricsListRef;
 
-  const allSubtitlesSelected = sortedSubtitles.length > 0 && sortedSubtitles.length === selectedSubtitleIds.size;
-  const allLyricsSelected = sortedLyrics.length > 0 && sortedLyrics.length === selectedLyricIds.size;
+  const allSubtitlesSelected =
+    sortedSubtitles.length > 0 &&
+    sortedSubtitles.length === selectedSubtitleIds.size;
+  const allLyricsSelected =
+    sortedLyrics.length > 0 && sortedLyrics.length === selectedLyricIds.size;
 
   const handleSelectAllSubtitles = () => {
     const shouldSelect = !allSubtitlesSelected;
@@ -458,7 +523,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       return;
     }
     const activeClip = activeList.find(
-      (clip) => currentTime >= clip.startTime && currentTime <= clip.endTime
+      (clip) => currentTime >= clip.startTime && currentTime <= clip.endTime,
     );
     setActiveClipId(activeClip ? activeClip.id : null);
   }, [currentTime, activeList]);
@@ -481,7 +546,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
       if (distanceFromCenter > 100) {
         const scrollTop =
-          clipElement.offsetTop - container.clientHeight / 2 + clipElement.clientHeight / 2;
+          clipElement.offsetTop -
+          container.clientHeight / 2 +
+          clipElement.clientHeight / 2;
         container.scrollTo({ top: scrollTop, behavior: 'smooth' });
         lastScrolledClipIdRef.current = activeClipId;
         setTimeout(() => {
@@ -494,12 +561,24 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   // Keyboard shortcuts (t, Ctrl+C, Ctrl+V)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
       if (activeSubTab !== 'edit') return;
 
-      if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (
+        e.key.toLowerCase() === 't' &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
         e.preventDefault();
-        const selectedSet = activeLeftPanelTab === 'subtitles' ? selectedSubtitleIds : selectedLyricIds;
+        const selectedSet =
+          activeLeftPanelTab === 'subtitles'
+            ? selectedSubtitleIds
+            : selectedLyricIds;
         const firstSelectedId = Array.from(selectedSet)[0];
         const textarea = textareaRefs.current.get(firstSelectedId);
         if (textarea) {
@@ -511,12 +590,18 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        if (activeLeftPanelTab === 'subtitles' && selectedSubtitleIds.size === 1) {
+        if (
+          activeLeftPanelTab === 'subtitles' &&
+          selectedSubtitleIds.size === 1
+        ) {
           e.preventDefault();
           const id = Array.from(selectedSubtitleIds)[0];
           const clip = sortedSubtitles.find((c) => c.id === id);
           if (clip) setCopiedClip({ ...clip });
-        } else if (activeLeftPanelTab === 'lyrics' && selectedLyricIds.size === 1) {
+        } else if (
+          activeLeftPanelTab === 'lyrics' &&
+          selectedLyricIds.size === 1
+        ) {
           e.preventDefault();
           const id = Array.from(selectedLyricIds)[0];
           const clip = sortedLyrics.find((c) => c.id === id);
@@ -536,9 +621,15 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
             startTime: newStart,
             endTime: newEnd,
           };
-          if (activeLeftPanelTab === 'subtitles' && handleBatchAddSubtitles) {
+          if (
+            activeLeftPanelTab === 'subtitles' &&
+            handleBatchAddSubtitles
+          ) {
             handleBatchAddSubtitles([newClip]);
-          } else if (activeLeftPanelTab === 'lyrics' && handleBatchAddLyrics) {
+          } else if (
+            activeLeftPanelTab === 'lyrics' &&
+            handleBatchAddLyrics
+          ) {
             handleBatchAddLyrics([newClip]);
           }
         }
@@ -561,7 +652,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     handleBatchAddLyrics,
   ]);
 
-  // Preview timing estimation (unchanged)
+  // Preview timing estimation
   useEffect(() => {
     if (!lyricsPasteText.trim() && !subtitlesPasteText.trim()) {
       setEstimatedClips([]);
@@ -569,7 +660,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       return;
     }
 
-    const text = activeLeftPanelTab === 'subtitles' ? subtitlesPasteText : lyricsPasteText;
+    const text =
+      activeLeftPanelTab === 'subtitles' ? subtitlesPasteText : lyricsPasteText;
     const lines = text
       .split('\n')
       .map((line) => line.trim())
@@ -590,7 +682,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
     const clips = calculateSmartTiming(lines, startTime, remainingDuration, {
       baseDurationPerChar:
-        settings?.timing?.baseDurationPerChar || DEFAULT_CONFIG.baseDurationPerChar,
+        settings?.timing?.baseDurationPerChar ||
+        DEFAULT_CONFIG.baseDurationPerChar,
       minDuration: settings?.timing?.minClipDuration || DEFAULT_CONFIG.minDuration,
       maxDuration: settings?.timing?.maxClipDuration || DEFAULT_CONFIG.maxDuration,
       pauseBetweenClips:
@@ -603,7 +696,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       clips.map((clip) => ({
         text: clip.text,
         duration: clip.endTime - clip.startTime,
-      }))
+      })),
     );
     setShowPreview(true);
   }, [
@@ -631,7 +724,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
     const clips = calculateSmartTiming(lines, startTime, remainingDuration, {
       baseDurationPerChar:
-        settings?.timing?.baseDurationPerChar || DEFAULT_CONFIG.baseDurationPerChar,
+        settings?.timing?.baseDurationPerChar ||
+        DEFAULT_CONFIG.baseDurationPerChar,
       minDuration: settings?.timing?.minClipDuration || DEFAULT_CONFIG.minDuration,
       maxDuration: settings?.timing?.maxClipDuration || DEFAULT_CONFIG.maxDuration,
       pauseBetweenClips:
@@ -663,7 +757,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
     const clips = calculateSmartTiming(lines, startTime, remainingDuration, {
       baseDurationPerChar:
-        settings?.timing?.baseDurationPerChar || DEFAULT_CONFIG.baseDurationPerChar,
+        settings?.timing?.baseDurationPerChar ||
+        DEFAULT_CONFIG.baseDurationPerChar,
       minDuration: settings?.timing?.minClipDuration || DEFAULT_CONFIG.minDuration,
       maxDuration: settings?.timing?.maxClipDuration || DEFAULT_CONFIG.maxDuration,
       pauseBetweenClips:
@@ -691,7 +786,14 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     if (lyrics.length > prevLyricsCountRef.current) {
       const lyricsList = lyricsListRef.current;
       if (lyricsList) {
-        setTimeout(() => lyricsList.scrollTo({ top: lyricsList.scrollHeight, behavior: 'smooth' }), 0);
+        setTimeout(
+          () =>
+            lyricsList.scrollTo({
+              top: lyricsList.scrollHeight,
+              behavior: 'smooth',
+            }),
+          0,
+        );
       }
     }
   }, [lyrics.length]);
@@ -700,12 +802,19 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     if (subtitles.length > prevSubtitlesCountRef.current) {
       const subtitlesList = subtitlesListRef.current;
       if (subtitlesList) {
-        setTimeout(() => subtitlesList.scrollTo({ top: subtitlesList.scrollHeight, behavior: 'smooth' }), 0);
+        setTimeout(
+          () =>
+            subtitlesList.scrollTo({
+              top: subtitlesList.scrollHeight,
+              behavior: 'smooth',
+            }),
+          0,
+        );
       }
     }
   }, [subtitles.length]);
 
-  // Drag & drop logic (unchanged)
+  // Drag & drop
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -729,7 +838,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   const handleDrop = (
     e: React.DragEvent,
     list: LyricLine[],
-    onChange: (id: string, field: 'startTime', val: number) => void
+    onChange: (id: string, field: 'startTime', val: number) => void,
   ) => {
     e.preventDefault();
 
@@ -758,7 +867,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
         newStartTime = Math.max(0, targetItem.startTime - clipDuration - 0.5);
       }
     } else {
-      const nextItem = targetIndex < list.length - 1 ? list[targetIndex + 1] : null;
+      const nextItem =
+        targetIndex < list.length - 1 ? list[targetIndex + 1] : null;
       if (nextItem && nextItem.id !== draggedItemId) {
         newStartTime = (targetItem.endTime + nextItem.startTime) / 2;
         if (newStartTime < targetItem.endTime) newStartTime = targetItem.endTime + 0.1;
@@ -792,7 +902,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     list: LyricLine[],
     onChange: any,
     deleteFn: any,
-    isSubtitles: boolean
+    isSubtitles: boolean,
   ) => {
     const selectedSet = isSubtitles ? selectedSubtitleIds : selectedLyricIds;
     const toggleFn = isSubtitles ? toggleSubtitleSelection : toggleLyricSelection;
@@ -865,7 +975,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                 value={formatTime(line.startTime)}
                 onChange={(e) => onChange(line.id, 'startTime', e.target.value)}
                 className={`w-24 bg-app-input-bg border rounded-sm px-1 py-0.5 text-xs text-app-text text-center focus:ring-1 focus:ring-primary outline-none ${
-                  activeClipId === line.id ? 'border-primary bg-primary' : 'border-app-border'
+                  activeClipId === line.id
+                    ? 'border-primary bg-primary'
+                    : 'border-app-border'
                 }`}
                 title="Start Time"
               />
@@ -875,7 +987,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                 value={formatTime(line.endTime)}
                 onChange={(e) => onChange(line.id, 'endTime', e.target.value)}
                 className={`w-24 bg-app-input-bg border rounded-sm px-1 py-0.5 text-xs text-app-text text-center focus:ring-1 focus:ring-primary outline-none ${
-                  activeClipId === line.id ? 'border-primary bg-primary/5' : 'border-app-border'
+                  activeClipId === line.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-app-border'
                 }`}
                 title="End Time"
               />
@@ -898,17 +1012,23 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       {/* Header Section */}
       <div className="flex-shrink-0 space-y-3 pb-3">
         <div className="flex justify-between">
-          <h3 className="text-xl font-semibol flex items-center">
+          <h3 className="text-xl font-semibold flex items-center">
             <Edit className="mr-2 text-primary" /> Edit
           </h3>
 
           {isVerticalLayout ? (
             <button
-              onClick={() => setIsLeftPanelTopRowFilled(!isLeftPanelTopRowFilled)}
+              onClick={() =>
+                setIsLeftPanelTopRowFilled(!isLeftPanelTopRowFilled)
+              }
               className="p-2 rounded-md text-app-icon-color"
               title={isLeftPanelTopRowFilled ? 'Restore Panel' : 'Fill Pane'}
             >
-              {isLeftPanelTopRowFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              {isLeftPanelTopRowFilled ? (
+                <Minimize2 size={16} />
+              ) : (
+                <Maximize2 size={16} />
+              )}
             </button>
           ) : (
             <button
@@ -916,7 +1036,11 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
               className="p-2 rounded-md text-app-icon-color"
               title={isLeftPanelFilled ? 'Restore Panel' : 'Fill Pane'}
             >
-              {isLeftPanelFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              {isLeftPanelFilled ? (
+                <Minimize2 size={16} />
+              ) : (
+                <Maximize2 size={16} />
+              )}
             </button>
           )}
         </div>
@@ -960,10 +1084,29 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
         {activeSubTab === 'edit' &&
           (activeLeftPanelTab === 'subtitles' ? (
             <div className="flex flex-col h-full overflow-hidden">
+              {/* Hidden file input for .srt/.vtt/.lrc/.ass import */}
+              <input
+                ref={subtitleFileInputRef}
+                type="file"
+                accept=".srt,.vtt,.lrc,.ass,.ssa"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f && onImportSubtitleFile) {
+                    await onImportSubtitleFile(f);
+                  }
+                }}
+              />
+
               <div className="flex-shrink-0 space-y-3 pb-4">
                 <div className="px-0.5">
                   <button
-                    onClick={() => setIsSubtitlesTextareaExpanded(!isSubtitlesTextareaExpanded)}
+                    onClick={() =>
+                      setIsSubtitlesTextareaExpanded(
+                        !isSubtitlesTextareaExpanded,
+                      )
+                    }
                     className="w-full flex items-center justify-between p-2 bg-app-gray-light rounded-md hover:bg-app-gray transition-colors"
                   >
                     <span className="text-sm font-medium flex items-center gap-2">
@@ -987,11 +1130,26 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                   )}
                 </div>
 
+                {/* Import from file */}
+                {onImportSubtitleFile && (
+                  <div className="px-0.5">
+                    <button
+                      onClick={() => subtitleFileInputRef.current?.click()}
+                      className="w-full px-4 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm"
+                    >
+                      <Upload className="mr-2" size={16} />
+                      Import from File (.srt / .vtt / .lrc / .ass)
+                    </button>
+                  </div>
+                )}
+
                 {showPreview && estimatedClips.length > 0 && (
                   <div className="p-3 bg-app-gray-light rounded-md border border-app-border">
                     <div className="flex items-center mb-2">
                       <Clock size={14} className="text-primary mr-2" />
-                      <span className="text-xs font-medium">Estimated Timing Preview</span>
+                      <span className="text-xs font-medium">
+                        Estimated Timing Preview
+                      </span>
                       <span className="ml-auto text-xs text-app-gray">
                         {estimatedClips.length} clips · Total:{' '}
                         {estimatedClips
@@ -1004,7 +1162,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                       {estimatedClips.slice(0, 3).map((clip, idx) => (
                         <div key={idx} className="flex justify-between">
                           <span className="truncate flex-1">{clip.text}</span>
-                          <span className="text-app-gray ml-2">{clip.duration.toFixed(1)}s</span>
+                          <span className="text-app-gray ml-2">
+                            {clip.duration.toFixed(1)}s
+                          </span>
                         </div>
                       ))}
                       {estimatedClips.length > 3 && (
@@ -1046,9 +1206,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                   onClick={handleAutoSyncSubtitles}
                   disabled={!subtitlesPasteText.trim() || !handleBatchAddSubtitles}
                   className="w-full px-4 py-2 bg-success text-white rounded-md hover:bg-opacity-80 flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={
-                    !handleBatchAddSubtitles ? 'Batch add function not available' : ''
-                  }
+                  title={!handleBatchAddSubtitles ? 'Batch add function not available' : ''}
                 >
                   <Zap className="mr-2" size={18} /> Auto Generate Subtitles
                 </button>
@@ -1094,15 +1252,37 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
               </div>
 
               <div className="flex-1 min-h-0 flex flex-col">
-                {renderList(sortedSubtitles, handleSubtitleChange, handleDeleteSubtitle, true)}
+                {renderList(
+                  sortedSubtitles,
+                  handleSubtitleChange,
+                  handleDeleteSubtitle,
+                  true,
+                )}
               </div>
             </div>
           ) : (
             <div className="flex flex-col h-full overflow-hidden">
+              {/* Hidden file input for .srt/.vtt/.lrc/.ass import */}
+              <input
+                ref={lyricsFileInputRef}
+                type="file"
+                accept=".srt,.vtt,.lrc,.ass,.ssa"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f && onImportSubtitleFile) {
+                    await onImportSubtitleFile(f);
+                  }
+                }}
+              />
+
               <div className="flex-shrink-0 space-y-3 pb-4">
                 <div className="px-0.5">
                   <button
-                    onClick={() => setIsLyricsTextareaExpanded(!isLyricsTextareaExpanded)}
+                    onClick={() =>
+                      setIsLyricsTextareaExpanded(!isLyricsTextareaExpanded)
+                    }
                     className="w-full flex items-center justify-between p-2 bg-app-gray-light rounded-md hover:bg-app-gray transition-colors"
                   >
                     <span className="text-sm font-medium flex items-center gap-2">
@@ -1127,11 +1307,26 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                   )}
                 </div>
 
+                {/* Import from file */}
+                {onImportSubtitleFile && (
+                  <div className="px-0.5">
+                    <button
+                      onClick={() => lyricsFileInputRef.current?.click()}
+                      className="w-full px-4 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm"
+                    >
+                      <Upload className="mr-2" size={16} />
+                      Import from File (.srt / .vtt / .lrc / .ass)
+                    </button>
+                  </div>
+                )}
+
                 {showPreview && estimatedClips.length > 0 && (
                   <div className="p-3 bg-app-gray-light rounded-md border border-app-border">
                     <div className="flex items-center mb-2">
                       <Clock size={14} className="text-primary mr-2" />
-                      <span className="text-xs font-medium">Estimated Timing Preview</span>
+                      <span className="text-xs font-medium">
+                        Estimated Timing Preview
+                      </span>
                       <span className="ml-auto text-xs text-app-gray">
                         {estimatedClips.length} clips · Total:{' '}
                         {estimatedClips
@@ -1144,7 +1339,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                       {estimatedClips.slice(0, 3).map((clip, idx) => (
                         <div key={idx} className="flex justify-between">
                           <span className="truncate flex-1">{clip.text}</span>
-                          <span className="text-app-gray ml-2">{clip.duration.toFixed(1)}s</span>
+                          <span className="text-app-gray ml-2">
+                            {clip.duration.toFixed(1)}s
+                          </span>
                         </div>
                       ))}
                       {estimatedClips.length > 3 && (
@@ -1192,7 +1389,12 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
               </div>
 
               <div className="flex-1 min-h-0 flex flex-col">
-                {renderList(sortedLyrics, handleLyricChange, handleDeleteLyric, false)}
+                {renderList(
+                  sortedLyrics,
+                  handleLyricChange,
+                  handleDeleteLyric,
+                  false,
+                )}
               </div>
             </div>
           ))}
@@ -1225,7 +1427,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
           <div className="flex-1 overflow-y-auto lyrics-list-scrollbar pr-2">
             <TemplatesContent
               currentStyle={
-                activeLeftPanelTab === 'lyrics' ? lyricTextStyle : subtitleTextStyle
+                activeLeftPanelTab === 'lyrics'
+                  ? lyricTextStyle
+                  : subtitleTextStyle
               }
               onSelectTextStyle={
                 activeLeftPanelTab === 'lyrics'

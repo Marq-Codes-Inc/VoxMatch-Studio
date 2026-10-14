@@ -29,6 +29,8 @@ declare global {
         data: ArrayBuffer;
         mimeType: string;
       }>;
+      /** NEW — read any text file (subtitle/lyrics import). */
+      readTextFile: (filePath: string) => Promise<string>;
       loadProjectFile: (filePath: string) => Promise<string>;
       saveProject: (
         projectData: any,
@@ -61,4 +63,3 @@ declare global {
     __REACT_APP_READY__?: boolean;
   }
 }
-

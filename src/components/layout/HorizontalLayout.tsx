@@ -41,7 +41,6 @@ interface HorizontalLayoutProps {
   ) => void;
   onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
   onOpenStageSettingsModal?: () => void;
-  /** Ref where the shared <VideoPreviewPanel> should be positioned */
   videoSlotRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -86,7 +85,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
         containerHeight: rect.height,
       });
 
-      document.body.style.cursor = type === 'left-width' ? 'col-resize' : 'row-resize';
+      document.body.style.cursor =
+        type === 'left-width' ? 'col-resize' : 'row-resize';
       document.body.style.userSelect = 'none';
     },
     [sizes, containerRef],
@@ -115,19 +115,28 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
       switch (type) {
         case 'left-width': {
           const deltaPercent = (deltaX / containerWidth) * 100;
-          updates.leftWidth = Math.min(60, Math.max(20, initialLeftWidth + deltaPercent));
+          updates.leftWidth = Math.min(
+            60,
+            Math.max(20, initialLeftWidth + deltaPercent),
+          );
           break;
         }
         case 'video-height': {
           const deltaPercent = (deltaY / containerHeight) * 100;
-          updates.videoHeight = Math.min(80, Math.max(20, initialVideoHeight + deltaPercent));
+          updates.videoHeight = Math.min(
+            80,
+            Math.max(20, initialVideoHeight + deltaPercent),
+          );
           break;
         }
         case 'left-panel-horizontal': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (deltaY / leftPanelRect.height) * 100;
-          updates.importHeight = Math.min(70, Math.max(20, initialImportHeight + deltaPercent));
+          updates.importHeight = Math.min(
+            70,
+            Math.max(20, initialImportHeight + deltaPercent),
+          );
           break;
         }
       }
@@ -161,7 +170,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
     async (e: React.DragEvent) => {
       e.preventDefault();
       const fileId = e.dataTransfer.getData('text/plain');
-      const fileToLoad = context.importedFiles.find(f => f.id === fileId);
+      const fileToLoad = context.importedFiles.find((f) => f.id === fileId);
       if (fileToLoad) {
         await context.onFileActivate(fileToLoad);
       }
@@ -174,7 +183,9 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
       {/* LEFT COLUMN */}
       <div
         ref={leftPanelRef}
-        className={`flex flex-col gap-2 min-h-0 ${isMaximizedVideo ? 'hidden' : ''}`}
+        className={`flex flex-col gap-2 min-h-0 ${
+          isMaximizedVideo ? 'hidden' : ''
+        }`}
         style={{ width: `${sizes.leftWidth}%` }}
       >
         {!isLeftPanelFilled && (
@@ -194,7 +205,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
 
             <ResizeHandle
               orientation="horizontal"
-              onMouseDown={e => startResize('left-panel-horizontal', e)}
+              onMouseDown={(e) => startResize('left-panel-horizontal', e)}
             />
           </>
         )}
@@ -237,6 +248,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             currentTime={context.currentTime}
             mediaDuration={context.mediaDuration}
             settings={context.settings}
+            onImportSubtitleFile={context.importSubtitleFile}
           />
         </div>
       </div>
@@ -244,13 +256,12 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
       {!isMaximizedVideo && (
         <ResizeHandle
           orientation="vertical"
-          onMouseDown={e => startResize('left-width', e)}
+          onMouseDown={(e) => startResize('left-width', e)}
         />
       )}
 
       {/* RIGHT COLUMN */}
       <div className="flex flex-col flex-1 gap-2 min-h-0">
-        {/* Video slot — the shared <VideoPreviewPanel> is positioned here */}
         <div
           ref={videoSlotRef}
           style={{ height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%` }}
@@ -261,7 +272,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
           <>
             <ResizeHandle
               orientation="horizontal"
-              onMouseDown={e => startResize('video-height', e)}
+              onMouseDown={(e) => startResize('video-height', e)}
             />
 
             <div
@@ -274,7 +285,7 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 isMediaLoaded={context.isMediaLoaded}
                 formatTime={context.formatTime}
                 handleSeek={context.handleSeek}
-                handleDragOver={e => e.preventDefault()}
+                handleDragOver={(e) => e.preventDefault()}
                 handleDrop={handleTimelineDrop}
                 activeFile={context.activeFile}
                 volume={context.volume}
@@ -292,7 +303,10 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 canRedo={context.canRedo}
                 snapToGrid={context.settings.snapToGrid}
                 toggleSnapToGrid={() =>
-                  context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
+                  context.handleSettingChange(
+                    'snapToGrid',
+                    !context.settings.snapToGrid,
+                  )
                 }
                 addMarker={context.addMarker}
                 markers={context.markers}

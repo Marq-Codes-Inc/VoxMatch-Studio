@@ -272,3 +272,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
   animation: text-typewriter 1s steps(30, end) both;
 }
 
+.export-scroll-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

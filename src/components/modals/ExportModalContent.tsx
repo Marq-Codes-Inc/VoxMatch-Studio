@@ -15,6 +15,7 @@ import {
   Download,
   FileAudio,
   FileVideo,
+  FolderOpen,
   Info,
   Loader2,
   RefreshCw,
@@ -24,9 +25,7 @@ import {
   ExportJobResult,
 } from './ExportProgressOverlay';
 
-// --------------------------------------------------------------------------
 // Types
-// --------------------------------------------------------------------------
 
 interface ExportModalContentProps {
   settings: AppSettings;
@@ -38,15 +37,14 @@ interface ExportModalContentProps {
   file: ImportedMediaFile | null;
   project: VoxMatchProject;
   onClose: () => void;
-  /** Optional: the currently mounted <video> element, used for snapshots. */
   mediaElementRef?: React.RefObject<HTMLVideoElement>;
 }
 
 type ExportKind = 'subtitles' | 'lyrics' | 'video';
 
-// --------------------------------------------------------------------------
 // Constants
-// --------------------------------------------------------------------------
+
+const EXPORT_PATH_STORAGE_KEY = 'voxmatch-export-last-path';
 
 const SUBTITLE_FORMATS: {
   value: SubtitleFormat;
@@ -60,7 +58,7 @@ const SUBTITLE_FORMATS: {
     label: 'SubRip (.srt)',
     ext: 'srt',
     mime: 'text/plain',
-    description: 'Universal — YouTube, VLC, Premiere',
+    description: 'Universal - YouTube, VLC, Premiere',
   },
   {
     value: 'vtt',
@@ -111,9 +109,7 @@ const KIND_OPTIONS: {
   },
 ];
 
-// --------------------------------------------------------------------------
 // Helpers
-// --------------------------------------------------------------------------
 
 function sanitizeFileName(name: string): string {
   return name
@@ -126,15 +122,38 @@ function makeJobId(): string {
   return `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// --------------------------------------------------------------------------
-// Stage thumbnail — real snapshot
-// --------------------------------------------------------------------------
+/** Join folder + filename with the correct separator for the platform. */
+function joinPath(folder: string, fileName: string): string {
+  if (!folder) return fileName;
+  // Detect Windows-style path (drive letter or backslash)
+  const isWindows = /^[a-zA-Z]:\\/.test(folder) || folder.includes('\\');
+  const sep = isWindows ? '\\' : '/';
+  const trimmed = folder.replace(/[\\/]+$/, '');
+  return `${trimmed}${sep}${fileName}`;
+}
+
+function loadStoredPath(): string {
+  try {
+    return localStorage.getItem(EXPORT_PATH_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function storePath(path: string): void {
+  try {
+    localStorage.setItem(EXPORT_PATH_STORAGE_KEY, path);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Stage thumbnail
 
 const StageThumbnail: React.FC<{
   project: VoxMatchProject;
   file: ImportedMediaFile | null;
   mediaElementRef?: React.RefObject<HTMLVideoElement>;
-  /** Text to draw on the snapshot (from the current clip if any). */
   overlayText?: string | null;
 }> = ({ project, file, mediaElementRef, overlayText }) => {
   const [snapshot, setSnapshot] = useState<string>('');
@@ -142,10 +161,6 @@ const StageThumbnail: React.FC<{
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isVideo = !!file && file.type.startsWith('video');
-
-  const regenerate = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,17 +226,15 @@ const StageThumbnail: React.FC<{
         </div>
       )}
 
-      {/* Refresh button (hover) */}
       <button
         type="button"
-        onClick={regenerate}
+        onClick={() => setRefreshKey((k) => k + 1)}
         className="absolute top-1 right-1 p-1 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-black/80"
         title="Refresh preview"
       >
         <RefreshCw size={12} />
       </button>
 
-      {/* Aspect badge */}
       <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/60 text-[9px] text-white/90">
         {project.stageStyle.aspectRatio || '16:9'}
       </span>
@@ -229,9 +242,7 @@ const StageThumbnail: React.FC<{
   );
 };
 
-// --------------------------------------------------------------------------
 // Main component
-// --------------------------------------------------------------------------
 
 export const ExportModalContent: React.FC<ExportModalContentProps> = ({
   file,
@@ -248,7 +259,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     ? 'lyrics'
     : 'video';
 
-  // ---- Form state ----
+  // Form state
   const [kind, setKind] = useState<ExportKind>(defaultKind);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const [fileName, setFileName] = useState<string>(() =>
@@ -256,7 +267,10 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
   );
   const [lastEditedExt, setLastEditedExt] = useState<string | null>(null);
 
-  // ---- In-flight job ----
+  // NEW: export folder
+  const [exportPath, setExportPath] = useState<string>(loadStoredPath);
+
+  // In-flight job
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobPromise, setJobPromise] = useState<Promise<ExportJobResult> | null>(
     null,
@@ -265,7 +279,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
 
   const cancelRef = useRef(false);
 
-  // ---- Derived ----
+  // Derived
   const clips = kind === 'subtitles' ? project.subtitles : project.lyrics;
 
   const activeFormat = useMemo(
@@ -281,11 +295,22 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     return hasExt ? trimmed : `${trimmed}.${desiredExt}`;
   }, [fileName, desiredExt]);
 
+  // Full destination path (empty folder → rely on the save dialog)
+  const destination = useMemo(
+    () => (exportPath ? joinPath(exportPath, finalFileName) : ''),
+    [exportPath, finalFileName],
+  );
+
   const canExportText = clips.length > 0;
   const canExportVideo = !!file;
   const isWorking = jobPromise !== null;
 
-  // ---- Keep extension in sync when format changes ----
+  // Persist chosen folder
+  useEffect(() => {
+    if (exportPath) storePath(exportPath);
+  }, [exportPath]);
+
+  // Keep extension in sync when format changes
   useEffect(() => {
     setFileName((prev) => {
       if (lastEditedExt && prev.toLowerCase().endsWith(`.${lastEditedExt}`)) {
@@ -297,15 +322,40 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     setLastEditedExt(desiredExt);
   }, [desiredExt, lastEditedExt]);
 
-  // ---- Overlay text for the preview snapshot ----
+  // Overlay text for the preview snapshot
   const previewText = useMemo(() => {
     const list = kind === 'lyrics' ? project.lyrics : project.subtitles;
     if (!list.length) return null;
-    // Show the first clip's text — it's the most representative
     return [...list].sort((a, b) => a.startTime - b.startTime)[0].text;
   }, [kind, project.lyrics, project.subtitles]);
 
-  // ---- Start an export ----
+  // Folder picker
+  const handleBrowseFolder = useCallback(async () => {
+    if (!window.electronAPI?.openFile) {
+      // Web fallback — we can't access a real folder path, so prompt for a
+      // virtual path the user understands won't be enforced.
+      const entered = window.prompt(
+        'Enter a destination folder (used only as a hint in the browser):',
+        exportPath || '',
+      );
+      if (entered !== null) setExportPath(entered.trim());
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.openFile({
+        title: 'Select Export Folder',
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      if (!result.canceled && result.filePaths?.[0]) {
+        setExportPath(result.filePaths[0]);
+      }
+    } catch (err) {
+      console.error('Failed to pick folder:', err);
+    }
+  }, [exportPath]);
+
+  // Start an export
   const handleExport = () => {
     if (isWorking) return;
 
@@ -334,7 +384,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     setJobPromise(promise);
   };
 
-  // ---- Text export (subtitles / lyrics) ----
+  // Text export
   const runTextExport = async (id: string): Promise<ExportJobResult> => {
     if (!canExportText) {
       return { success: false, message: 'No clips to export.' };
@@ -354,8 +404,13 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
       return { success: true, path: finalFileName };
     }
 
+    // If the user chose a folder, we pass the full path so no dialog appears.
+    // Otherwise, we fall back to the OS save dialog by omitting `filePath`.
+    const filePath = destination || undefined;
+
     const result = await window.electronAPI.writeTextFile({
       content,
+      filePath,
       title: `Export ${activeFormat.label}`,
       defaultPath: finalFileName,
       jobId: id,
@@ -372,7 +427,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     };
   };
 
-  // ---- Video export ----
+  // Video export
   const runVideoExport = async (id: string): Promise<ExportJobResult> => {
     if (!file) {
       return { success: false, message: 'No media file loaded.' };
@@ -388,20 +443,18 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     const safe = sanitizeFileName(project.name) || 'export';
     const result = await window.electronAPI.exportVideo({
       title: 'Export Video',
-      defaultPath: `${safe}.mp4`,
+      defaultPath: destination || `${safe}.mp4`,
     });
 
     if (!result?.success || !result.path) {
       return { success: false, message: 'Cancelled' };
     }
 
-    // Simulate steady progress for the visual feedback loop, then complete.
-    // Real encoding will stream actual percent via `export:progress`.
     await new Promise((r) => setTimeout(r, 1500));
     return { success: true, path: result.path, partial: true };
   };
 
-  // ---- Overlay lifecycle ----
+  // Overlay lifecycle
   const handleComplete = (_result: ExportJobResult) => {
     setJobId(null);
     setJobPromise(null);
@@ -409,13 +462,11 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
 
   const handleCancel = () => {
     cancelRef.current = true;
-    // The IPC call can't actually be interrupted mid-write with the
-    // current API; close the overlay immediately so the user isn't blocked.
     setJobId(null);
     setJobPromise(null);
   };
 
-  // ---- Options for the reusable Dropdown ----
+  // Dropdown options
   const subtitleFormatOptions = SUBTITLE_FORMATS.map((f) => ({
     value: f.value,
     label: f.label,
@@ -434,8 +485,11 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
   return (
     <>
       <div className="flex flex-col max-h-[calc(90vh-100px)]">
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* ---------- Destination preview (real snapshot) ---------- */}
+        <div
+          className="flex-1 overflow-y-auto p-6 space-y-6 export-scroll-hidden"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {/* Destination preview */}
           <div className="flex items-start gap-4 p-4 rounded-lg border border-app-border bg-app-gray-dark/30">
             <StageThumbnail
               project={project}
@@ -459,7 +513,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
             </div>
           </div>
 
-          {/* ---------- Export kind ---------- */}
+          {/* Export kind */}
           <div>
             <label className="block text-sm font-medium text-app-text mb-2">
               Export Type
@@ -500,7 +554,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
             </div>
           </div>
 
-          {/* ---------- Format selector ---------- */}
+          {/* Format selector */}
           {kind !== 'video' && (
             <div>
               <Dropdown
@@ -529,7 +583,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
             </div>
           )}
 
-          {/* ---------- File name ---------- */}
+          {/* File name */}
           <div>
             <label
               htmlFor="export-filename"
@@ -554,13 +608,52 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
                 .{desiredExt}
               </span>
             </div>
+          </div>
+
+          {/* Export folder (NEW) */}
+          <div>
+            <label
+              htmlFor="export-path"
+              className="block text-sm font-medium text-app-text mb-2"
+            >
+              Export Folder
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="export-path"
+                type="text"
+                value={exportPath}
+                disabled={isWorking}
+                onChange={(e) => setExportPath(e.target.value)}
+                placeholder="Leave blank to choose on export…"
+                className="flex-1 px-3 py-2 bg-app-input-bg border border-app-border rounded-md text-sm text-app-text focus:outline-none focus:border-primary disabled:opacity-60 font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleBrowseFolder}
+                disabled={isWorking}
+                className="px-3 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center gap-2 text-sm disabled:opacity-60"
+                title="Browse for folder"
+              >
+                <FolderOpen size={16} />
+                Browse
+              </button>
+            </div>
             <p className="text-[11px] text-app-gray mt-1.5">
-              Final name:{' '}
-              <span className="text-app-text font-mono">{finalFileName}</span>
+              {exportPath ? (
+                <>
+                  Will save to{' '}
+                  <span className="text-app-text font-mono break-all">
+                    {destination}
+                  </span>
+                </>
+              ) : (
+                'A save dialog will appear when you click Export.'
+              )}
             </p>
           </div>
 
-          {/* ---------- Summary ---------- */}
+          {/* Summary */}
           <div className="bg-app-gray-light p-3 rounded-md text-xs">
             <p className="text-sm font-medium text-app-text mb-1">Summary</p>
             <ul className="space-y-0.5 text-app-gray">
@@ -594,11 +687,17 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
                   <span className="text-app-text">MP4 (H.264)</span>
                 </li>
               )}
+              <li>
+                Save to:{' '}
+                <span className="text-app-text font-mono break-all">
+                  {exportPath ? destination : 'Save dialog on export'}
+                </span>
+              </li>
             </ul>
           </div>
         </div>
 
-        {/* ---------- Footer ---------- */}
+        {/* Footer */}
         <div className="flex-shrink-0 border-t border-app-border p-4 flex items-center justify-end gap-3 bg-app-surface">
           <button
             type="button"
@@ -620,7 +719,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
         </div>
       </div>
 
-      {/* ---------- Progress overlay ---------- */}
+      {/* Progress overlay */}
       {jobPromise && jobId && (
         <ExportProgressOverlay
           jobId={jobId}

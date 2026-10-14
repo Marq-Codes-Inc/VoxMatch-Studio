@@ -8,6 +8,7 @@ import {
   StageStyle,
   TextStyle,
 } from '../types/types';
+import type { ImportSubtitleResult } from '../utils/subtitleImport';
 
 export interface ProjectEditorContextValue {
   isPlaying: boolean;
@@ -64,7 +65,10 @@ export interface ProjectEditorContextValue {
   handleBatchAddSubtitles: (newSubtitles: Omit<LyricLine, 'id'>[]) => void;
   undo: () => void;
   redo: () => void;
-  handleSettingChange: (name: string, value: string | boolean | number) => void;
+  handleSettingChange: (
+    name: string,
+    value: string | boolean | number,
+  ) => void;
   setStageStyle: React.Dispatch<React.SetStateAction<StageStyle>>;
   setLyricTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
   setSubtitleTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
@@ -91,9 +95,14 @@ export interface ProjectEditorContextValue {
   audioElementRef: React.RefObject<HTMLAudioElement>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
 
-  // Audio overlay
   isVuOverlayEnabled: boolean;
   toggleVuOverlay: () => void;
+
+  /** Import a subtitle/lyrics file into the active track. */
+  importSubtitleFile: (
+    file: File,
+    options?: { replace?: boolean },
+  ) => Promise<ImportSubtitleResult | null>;
 }
 
 const ProjectEditorContext = createContext<ProjectEditorContextValue | null>(

@@ -28,7 +28,7 @@ export const safeElectronCall = async <T>(
 ): Promise<T | null> => {
   const api = getElectronAPI();
   if (!api) return null;
-  
+
   try {
     const fn = api[method] as (...args: any[]) => Promise<T>;
     return await fn(...args);
@@ -67,6 +67,15 @@ export const loadAudioFileContent = async (filePath: string) => {
 };
 
 /**
+ * Read the contents of a text file (used for subtitle/lyrics imports).
+ */
+export const readTextFile = async (
+  filePath: string,
+): Promise<string | null> => {
+  return safeElectronCall<string>('readTextFile', filePath);
+};
+
+/**
  * Load project file
  */
 export const loadProjectFile = async (filePath: string) => {
@@ -101,9 +110,7 @@ export const getPlatform = async (): Promise<string> => {
  */
 export const minimizeWindow = () => {
   const api = getElectronAPI();
-  if (api) {
-    api.minimizeWindow();
-  }
+  if (api) api.minimizeWindow();
 };
 
 /**
@@ -111,9 +118,7 @@ export const minimizeWindow = () => {
  */
 export const maximizeWindow = () => {
   const api = getElectronAPI();
-  if (api) {
-    api.maximizeWindow();
-  }
+  if (api) api.maximizeWindow();
 };
 
 /**
@@ -121,9 +126,7 @@ export const maximizeWindow = () => {
  */
 export const closeWindow = () => {
   const api = getElectronAPI();
-  if (api) {
-    api.closeWindow();
-  }
+  if (api) api.closeWindow();
 };
 
 /**
@@ -139,9 +142,8 @@ export const notifyAppReady = async (): Promise<boolean> => {
  */
 export const subscribeToElectronEvent = (
   channel: string,
-  callback: (...args: any[]) => void
+  callback: (...args: any[]) => void,
 ): (() => void) | undefined => {
   const api = getElectronAPI();
   return api?.on(channel, callback);
 };
-

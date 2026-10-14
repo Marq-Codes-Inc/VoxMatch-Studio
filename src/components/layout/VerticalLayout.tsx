@@ -86,7 +86,9 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       });
 
       document.body.style.cursor =
-        type === 'top-split' || type === 'left-width' ? 'col-resize' : 'row-resize';
+        type === 'top-split' || type === 'left-width'
+          ? 'col-resize'
+          : 'row-resize';
       document.body.style.userSelect = 'none';
     },
     [sizes, containerRef],
@@ -115,21 +117,30 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       switch (type) {
         case 'left-width': {
           const deltaPercent = (deltaX / containerWidth) * 100;
-          updates.leftWidth = Math.min(75, Math.max(50, initialLeftWidth + deltaPercent));
+          updates.leftWidth = Math.min(
+            75,
+            Math.max(50, initialLeftWidth + deltaPercent),
+          );
           break;
         }
         case 'top-split': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (deltaX / leftPanelRect.width) * 100;
-          updates.topSplit = Math.min(60, Math.max(25, initialTopSplit + deltaPercent));
+          updates.topSplit = Math.min(
+            60,
+            Math.max(25, initialTopSplit + deltaPercent),
+          );
           break;
         }
         case 'bottom-height': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (-deltaY / leftPanelRect.height) * 100;
-          updates.bottomHeight = Math.min(60, Math.max(20, initialBottomHeight + deltaPercent));
+          updates.bottomHeight = Math.min(
+            60,
+            Math.max(20, initialBottomHeight + deltaPercent),
+          );
           break;
         }
       }
@@ -163,7 +174,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
     async (e: React.DragEvent) => {
       e.preventDefault();
       const fileId = e.dataTransfer.getData('text/plain');
-      const fileToLoad = context.importedFiles.find(f => f.id === fileId);
+      const fileToLoad = context.importedFiles.find((f) => f.id === fileId);
       if (fileToLoad) {
         await context.onFileActivate(fileToLoad);
       }
@@ -201,7 +212,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
           {!isLeftPanelTopRowFilled && (
             <ResizeHandle
               orientation="vertical"
-              onMouseDown={e => startResize('top-split', e)}
+              onMouseDown={(e) => startResize('top-split', e)}
             />
           )}
 
@@ -243,13 +254,14 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
               currentTime={context.currentTime}
               mediaDuration={context.mediaDuration}
               settings={context.settings}
+              onImportSubtitleFile={context.importSubtitleFile}
             />
           </div>
         </div>
 
         <ResizeHandle
           orientation="horizontal"
-          onMouseDown={e => startResize('bottom-height', e)}
+          onMouseDown={(e) => startResize('bottom-height', e)}
         />
 
         <div
@@ -262,7 +274,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
             isMediaLoaded={context.isMediaLoaded}
             formatTime={context.formatTime}
             handleSeek={context.handleSeek}
-            handleDragOver={e => e.preventDefault()}
+            handleDragOver={(e) => e.preventDefault()}
             handleDrop={handleTimelineDrop}
             activeFile={context.activeFile}
             volume={context.volume}
@@ -280,7 +292,10 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
             canRedo={context.canRedo}
             snapToGrid={context.settings.snapToGrid}
             toggleSnapToGrid={() =>
-              context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
+              context.handleSettingChange(
+                'snapToGrid',
+                !context.settings.snapToGrid,
+              )
             }
             addMarker={context.addMarker}
             markers={context.markers}
@@ -297,7 +312,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       {!isMaximizedVideo && (
         <ResizeHandle
           orientation="vertical"
-          onMouseDown={e => startResize('left-width', e)}
+          onMouseDown={(e) => startResize('left-width', e)}
         />
       )}
 
@@ -305,10 +320,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
         className="flex-1 flex flex-col min-w-0"
         style={{ width: `${rightColumnWidth}%` }}
       >
-        {/* Video slot */}
         <div ref={videoSlotRef} className="flex-1 min-h-0" />
       </div>
     </div>
   );
 };
-

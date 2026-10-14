@@ -1,8 +1,7 @@
 // src/utils/subtitleExport.ts
 import { LyricLine } from '../types/types';
 
-// --- Time formatting helpers ---
-
+// Time formatting helpers
 /** SRT: 00:00:05,500 */
 function toSrtTime(seconds: number): string {
   const safe = Math.max(0, seconds);
@@ -44,7 +43,7 @@ function sortedClips(clips: LyricLine[]): LyricLine[] {
   return [...clips].sort((a, b) => a.startTime - b.startTime);
 }
 
-// --- Public generators ---
+// Public generators
 
 export function toSrt(clips: LyricLine[]): string {
   return sortedClips(clips)
@@ -73,10 +72,7 @@ export function toLrc(clips: LyricLine[]): string {
     .join('\n');
 }
 
-/**
- * Basic ASS (Advanced SubStation Alpha) generator.
- * Uses a single default style; good enough for most players.
- */
+/* Basic ASS (Advanced SubStation Alpha) generator. */
 export function toAss(clips: LyricLine[]): string {
   const header = `[Script Info]
 Title: VoxMatch Export

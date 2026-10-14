@@ -13,12 +13,7 @@ import {
 
 // Public API
 
-/**
- * Serialize a project into a .vxm-format JSON string.
- * Media file `url` / `file` handles are stripped — only metadata persists.
- * The video `posterDataUrl` is preserved so home screen thumbnails work
- * without a live video element.
- */
+/* Serialize a project into a .vxm-format JSON string.*/
 export function serializeProject(project: VoxMatchProject): string {
   const sanitized: VoxMatchProject = {
     ...project,
@@ -28,10 +23,7 @@ export function serializeProject(project: VoxMatchProject): string {
   return JSON.stringify(sanitized, null, 2);
 }
 
-/**
- * Parse a .vxm-format JSON string into a validated VoxMatchProject.
- * Throws with a descriptive error on malformed input.
- */
+/* Parse a .vxm-format JSON string into a validated VoxMatchProject.*/
 export function deserializeProject(raw: string): VoxMatchProject {
   let parsed: any;
   try {
@@ -49,10 +41,7 @@ export function deserializeProject(raw: string): VoxMatchProject {
   return normalizeProject(parsed);
 }
 
-/**
- * Fill in missing fields, validate required ones, and return a
- * guaranteed-well-formed VoxMatchProject.
- */
+/* Fill in missing fields, validate required ones, and return a well-formed VoxMatchProject. */
 export function normalizeProject(raw: any): VoxMatchProject {
   if (!raw.id || typeof raw.id !== 'string') {
     throw new Error('Invalid .vxm file: missing "id".');
@@ -122,8 +111,6 @@ function stripMediaHandles(file: ImportedMediaFile): ImportedMediaFile {
     url: null,
     loaded: false,
     file: undefined,
-    // Poster is a string — deliberately preserved so the home screen
-    // and export modal can render it without a live video element.
     posterDataUrl: file.posterDataUrl ?? null,
   };
 }

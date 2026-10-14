@@ -16,6 +16,7 @@ import {
   ensureVxmExtension,
   VXM_EXTENSION,
 } from './utils/projectFile';
+import { invalidateProjectSnapshot } from './utils/projectSnapshot';
 
 // Storage keys
 
@@ -65,7 +66,8 @@ export function shallowCompareProjects(
       x.id !== y.id ||
       x.loaded !== y.loaded ||
       x.name !== y.name ||
-      x.path !== y.path
+      x.path !== y.path ||
+      x.posterDataUrl !== y.posterDataUrl
     ) {
       return false;
     }
@@ -330,6 +332,7 @@ function App() {
   const handleDeleteProject = useCallback(
     (projectId: string) => {
       localStorage.removeItem(`${PROJECT_KEY_PREFIX}${projectId}`);
+      invalidateProjectSnapshot(projectId);
       setProjects(prev => prev.filter(p => p.id !== projectId));
       if (activeProject?.id === projectId) setActiveProject(null);
     },
@@ -518,3 +521,4 @@ function App() {
 }
 
 export default App;
+

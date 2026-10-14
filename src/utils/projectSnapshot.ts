@@ -17,10 +17,12 @@ function makeKey(project: VoxMatchProject): string {
       ? project.lyricTextStyle
       : project.subtitleTextStyle;
 
-  const firstClip =
-    project.mode === 'lyrics'
-      ? [...project.lyrics].sort((a, b) => a.startTime - b.startTime)[0]
-      : [...project.subtitles].sort((a, b) => a.startTime - b.startTime)[0];
+  const list =
+    project.mode === 'lyrics' ? project.lyrics : project.subtitles;
+  const firstClip = [...list].sort((a, b) => a.startTime - b.startTime)[0];
+
+  const activeFile =
+    project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
 
   return JSON.stringify({
     id: project.id,
@@ -47,14 +49,15 @@ function makeKey(project: VoxMatchProject): string {
       italic: textStyle.italic,
     },
     previewText: firstClip?.text ?? null,
-    activeFileName: project.mediaFiles.find(f => f.id === project.activeFileId)?.name ?? null,
+    activeFileName: activeFile?.name ?? null,
+    posterDataUrl: activeFile?.posterDataUrl ?? null,
   });
 }
 
 /**
  * Build (or fetch from cache) a PNG data URL representing a project's stage.
- * Never draws a live video frame — there's no mounted element on the home
- * screen. Layer-based images, gradients, and text overlays are all included.
+ * When a video poster was extracted, it's drawn as the video frame. Otherwise
+ * the snapshot shows stage layers, overlays, and the audio placeholder.
  */
 export function getProjectSnapshot(project: VoxMatchProject): Promise<string> {
   const key = makeKey(project);
@@ -70,21 +73,23 @@ export function getProjectSnapshot(project: VoxMatchProject): Promise<string> {
       ? project.lyricTextStyle
       : project.subtitleTextStyle;
 
-  const firstClip =
-    project.mode === 'lyrics'
-      ? [...project.lyrics].sort((a, b) => a.startTime - b.startTime)[0]
-      : [...project.subtitles].sort((a, b) => a.startTime - b.startTime)[0];
+  const list =
+    project.mode === 'lyrics' ? project.lyrics : project.subtitles;
+  const firstClip = [...list].sort((a, b) => a.startTime - b.startTime)[0];
 
   const activeFile =
-    project.mediaFiles.find(f => f.id === project.activeFileId) ?? null;
+    project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
+
+  const isVideo = !!activeFile?.type?.startsWith('video');
 
   const promise = renderStageSnapshot({
     stageStyle: project.stageStyle,
     overlayText: firstClip?.text ?? undefined,
     textStyle,
     width: 480,
-    mediaIsVideo: false,
     mediaElement: null,
+    mediaIsVideo: isVideo,
+    posterDataUrl: activeFile?.posterDataUrl ?? null,
     hideVideoLayer: project.stageStyle.hideVideoLayer,
     hideAudioTitle: project.stageStyle.hideAudioTitle,
     activeFileName: activeFile?.name ?? null,
@@ -111,4 +116,3 @@ export function invalidateProjectSnapshot(projectId: string): void {
     }
   }
 }
-

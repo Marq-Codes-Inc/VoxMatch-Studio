@@ -16,10 +16,12 @@ interface SnapshotOptions {
   textStyle?: TextStyle;
   /** Width in device pixels. Height is derived from aspect ratio. */
   width?: number;
-  /** Media element to draw as the video frame (optional). */
+  /** Media element to draw as the video frame (optional, editor only). */
   mediaElement?: HTMLVideoElement | null;
   /** Media type — controls whether we skip drawing the video element. */
   mediaIsVideo?: boolean;
+  /** Fallback image data URL used when no live video is available. */
+  posterDataUrl?: string | null;
   /** Honour the "hide video" flag in the current stage settings. */
   hideVideoLayer?: boolean;
   /** Honour the "hide audio title" flag in the current stage settings. */
@@ -30,7 +32,8 @@ interface SnapshotOptions {
 
 /**
  * Offscreen-render the current stage to a PNG data URL.
- * - Video element (if provided) is drawn first when it's the active source.
+ * - Video element (if provided and ready) is drawn first.
+ * - Falls back to a static `posterDataUrl` when no live element is available.
  * - Layers are painted in order.
  * - Overlay text is drawn last using the supplied text style.
  */
@@ -44,6 +47,7 @@ export async function renderStageSnapshot(
     width = 320,
     mediaElement,
     mediaIsVideo,
+    posterDataUrl,
     hideVideoLayer,
     hideAudioTitle,
     activeFileName,
@@ -62,17 +66,26 @@ export async function renderStageSnapshot(
   ctx.fillStyle = stageStyle.backgroundColor || '#000000';
   ctx.fillRect(0, 0, width, height);
 
-  // ----- Video element (only if it's the active source and not hidden) -----
-  if (
-    mediaIsVideo &&
-    !hideVideoLayer &&
-    mediaElement &&
-    mediaElement.readyState >= 2 /* HAVE_CURRENT_DATA */
-  ) {
-    try {
-      drawVideoContain(ctx, mediaElement, width, height);
-    } catch {
-      // Silent — Tainted canvas or not-yet-ready; fall through to layers
+  // ----- Video element OR static poster (only when visible) -----
+  if (mediaIsVideo && !hideVideoLayer) {
+    const liveFrameAvailable =
+      mediaElement && mediaElement.readyState >= 2 /* HAVE_CURRENT_DATA */;
+
+    if (liveFrameAvailable) {
+      try {
+        drawVideoContain(ctx, mediaElement!, width, height);
+      } catch {
+        // Tainted canvas or not-yet-ready; fall through to poster
+      }
+    } else if (posterDataUrl) {
+      try {
+        const img = await loadImage(posterDataUrl);
+        if (img) {
+          drawImageWithFit(ctx, img, width, height, 'contain');
+        }
+      } catch {
+        // Silent — we just won't draw a video frame
+      }
     }
   }
 
@@ -102,9 +115,7 @@ export async function renderStageSnapshot(
   }
 }
 
-// --------------------------------------------------------------------------
 // Layer rendering
-// --------------------------------------------------------------------------
 
 async function drawLayer(
   ctx: CanvasRenderingContext2D,
@@ -188,9 +199,7 @@ function applyStops(grad: CanvasGradient, stops: GradientStop[]) {
   }
 }
 
-// --------------------------------------------------------------------------
 // Image helpers
-// --------------------------------------------------------------------------
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -230,9 +239,7 @@ function drawImageWithFit(
   }
 
   const scale =
-    fit === 'cover'
-      ? Math.max(w / iw, h / ih)
-      : Math.min(w / iw, h / ih);
+    fit === 'cover' ? Math.max(w / iw, h / ih) : Math.min(w / iw, h / ih);
   const dw = iw * scale;
   const dh = ih * scale;
   const dx = (w - dw) / 2;
@@ -271,9 +278,7 @@ function drawVideoContain(
   ctx.drawImage(video, dx, dy, dw, dh);
 }
 
-// --------------------------------------------------------------------------
 // Text helpers
-// --------------------------------------------------------------------------
 
 function drawCenteredText(
   ctx: CanvasRenderingContext2D,

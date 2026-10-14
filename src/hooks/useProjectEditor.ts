@@ -10,6 +10,7 @@ import {
   isSubtitleFileName,
 } from '../utils/subtitleImport';
 import type { ImportSubtitleResult } from '../utils/subtitleImport';
+import { extractVideoPoster } from '../utils/mediaPoster';
 
 export function useProjectEditor(
   initialProject: VoxMatchProject,
@@ -120,9 +121,39 @@ export function useProjectEditor(
       setActiveFileId(file.id);
       try {
         const loadedFile = await loadMediaIntoTimeline(file);
-        updateFileAfterLoad(loadedFile);
+
+        // ---- Extract a poster frame for the home screen thumbnail ----
+        let posterDataUrl = loadedFile.posterDataUrl ?? null;
+        const isVideo = loadedFile.type?.startsWith('video');
+
+        if (isVideo && !posterDataUrl) {
+          const source = loadedFile.url || loadedFile.path;
+          if (source) {
+            try {
+              posterDataUrl = await extractVideoPoster(source, {
+                position: 0.1,
+                width: 640,
+                quality: 0.75,
+              });
+              console.log(
+                `🖼️ Extracted poster for "${loadedFile.name}" (${Math.round(
+                  posterDataUrl.length / 1024,
+                )} KB)`,
+              );
+            } catch (err) {
+              console.warn('Could not extract video poster:', err);
+            }
+          }
+        }
+
+        const finalFile: ImportedMediaFile = {
+          ...loadedFile,
+          posterDataUrl: posterDataUrl ?? null,
+        };
+
+        updateFileAfterLoad(finalFile);
         markAsUnsaved();
-        return loadedFile;
+        return finalFile;
       } catch (error) {
         console.error('Failed to activate media file:', error);
         setActiveFileId(null);
@@ -161,13 +192,37 @@ export function useProjectEditor(
     }
   }, [initialProject.activeFileId, importedFiles, onFileActivate]);
 
+  // ---- Backfill posters for old projects ----
+  const posterBackfillRef = useRef(false);
+
+  useEffect(() => {
+    if (posterBackfillRef.current) return;
+    const active = importedFiles.find((f) => f.id === activeFileId);
+    if (!active || active.posterDataUrl) return;
+    if (!active.type?.startsWith('video')) return;
+    if (!active.loaded) return;
+
+    posterBackfillRef.current = true;
+
+    const source = active.url || active.path;
+    if (!source) return;
+
+    extractVideoPoster(source, { position: 0.1, width: 640, quality: 0.75 })
+      .then((poster) => {
+        if (!poster) return;
+        updateFileAfterLoad({ ...active, posterDataUrl: poster });
+        markAsUnsaved();
+        console.log(`🖼️ Backfilled poster for "${active.name}"`);
+      })
+      .catch((err) => {
+        console.warn('Poster backfill failed:', err);
+      });
+  }, [importedFiles, activeFileId, updateFileAfterLoad, markAsUnsaved]);
+
   /**
    * Import a subtitle/lyrics file (.srt / .vtt / .lrc / .ass) into the active
    * track. Places clips at their declared times, cascading around any existing
    * clips to avoid loss.
-   *
-   * Returns metadata about the import, or `null` if the file could not be
-   * parsed or contained no usable clips.
    */
   const importSubtitleFile = useCallback(
     async (
@@ -231,12 +286,10 @@ export function useProjectEditor(
         }
       }
 
-      // Subtitle/lyrics files → import into the active track
       for (const sf of subtitleFiles) {
         await importSubtitleFile(sf);
       }
 
-      // Media files → existing pipeline
       if (mediaFiles.length > 0) {
         const newFiles: ImportedMediaFile[] = mediaFiles.map((file) => ({
           id: generateId(),
@@ -248,6 +301,7 @@ export function useProjectEditor(
           file,
           duration: 0,
           loaded: false,
+          posterDataUrl: null,
         }));
 
         setImportedFiles((prev) => {
@@ -421,4 +475,3 @@ export function useProjectEditor(
     importSubtitleFile,
   };
 }
-

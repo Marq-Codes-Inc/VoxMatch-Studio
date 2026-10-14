@@ -30,7 +30,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const [snapshot, setSnapshot] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  // Render the project's stage snapshot whenever the visual content changes
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -72,7 +71,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               draggable={false}
             />
           ) : (
-            // Placeholder while rendering (or when the snapshot fails)
             <div className="absolute inset-0 bg-gradient-to-br from-app-gray-dark to-app-gray-light/50 flex items-center justify-center">
               {loading ? (
                 <Loader2 size={20} className="animate-spin text-app-gray" />

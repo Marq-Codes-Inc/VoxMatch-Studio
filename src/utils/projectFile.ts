@@ -16,6 +16,8 @@ import {
 /**
  * Serialize a project into a .vxm-format JSON string.
  * Media file `url` / `file` handles are stripped — only metadata persists.
+ * The video `posterDataUrl` is preserved so home screen thumbnails work
+ * without a live video element.
  */
 export function serializeProject(project: VoxMatchProject): string {
   const sanitized: VoxMatchProject = {
@@ -67,7 +69,6 @@ export function normalizeProject(raw: any): VoxMatchProject {
   const mergedStageStyle = {
     ...DEFAULT_STAGE_STYLE,
     ...(raw.stageStyle || {}),
-    // Ensure the new flags always have a defined boolean
     hideVideoLayer: Boolean(raw.stageStyle?.hideVideoLayer),
     hideAudioTitle: Boolean(raw.stageStyle?.hideAudioTitle),
   };
@@ -121,6 +122,9 @@ function stripMediaHandles(file: ImportedMediaFile): ImportedMediaFile {
     url: null,
     loaded: false,
     file: undefined,
+    // Poster is a string — deliberately preserved so the home screen
+    // and export modal can render it without a live video element.
+    posterDataUrl: file.posterDataUrl ?? null,
   };
 }
 
@@ -144,6 +148,11 @@ function normalizeMediaFile(file: any): ImportedMediaFile {
     url: null,
     loaded: false,
     file: undefined,
+    // Preserve the poster across serialize/deserialize
+    posterDataUrl:
+      typeof file?.posterDataUrl === 'string' && file.posterDataUrl
+        ? file.posterDataUrl
+        : null,
   };
 }
 

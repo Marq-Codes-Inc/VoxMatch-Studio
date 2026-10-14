@@ -10,16 +10,14 @@ var electronAPI = {
   getFileMetadata: (filePath) => import_electron.ipcRenderer.invoke("file:getMetadata", filePath),
   getMediaUrl: (filePath) => import_electron.ipcRenderer.invoke("file:getMediaUrl", filePath),
   loadAudioFileContent: (filePath) => import_electron.ipcRenderer.invoke("file:loadAudioContent", filePath),
+  // NEW — read any text file (used for .srt/.vtt/.lrc/.ass imports)
+  readTextFile: (filePath) => import_electron.ipcRenderer.invoke("file:readText", filePath),
   // Project (.vxm)
   loadProjectFile: (filePath) => import_electron.ipcRenderer.invoke("file:loadProject", filePath),
   saveProject: (projectData, filePath) => import_electron.ipcRenderer.invoke("project:save", projectData, filePath),
   // Export
   exportVideo: (options) => import_electron.ipcRenderer.invoke("export:video", options),
   exportSubtitles: (options) => import_electron.ipcRenderer.invoke("export:subtitles", options),
-  /**
-   * Write text to a file (SRT/VTT/LRC/ASS, etc.).
-   * If no filePath is passed, a save dialog is shown.
-   */
   writeTextFile: (options) => import_electron.ipcRenderer.invoke("export:writeText", options),
   // App
   getAppVersion: () => import_electron.ipcRenderer.invoke("app:getVersion"),

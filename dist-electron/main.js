@@ -65,6 +65,16 @@ function deliverPendingProjectFile() {
   mainWindow.webContents.send("app:openProjectFile", pendingProjectFile);
   pendingProjectFile = null;
 }
+function emitExportProgress(jobId, stage, percent, message) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("export:progress", {
+    jobId,
+    stage,
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
+    message,
+    timestamp: Date.now()
+  });
+}
 import_electron.protocol.registerSchemesAsPrivileged([
   {
     scheme: "media",
@@ -314,11 +324,17 @@ import_electron.ipcMain.handle("dialog:openFile", async (_event, options = {}) =
         "mov",
         "webm",
         "mkv",
-        "avi"
+        "avi",
+        "srt",
+        "vtt",
+        "lrc",
+        "ass",
+        "ssa"
       ]
     },
     { name: "Audio Files", extensions: ["mp3", "wav", "m4a", "ogg", "flac", "aac"] },
     { name: "Video Files", extensions: ["mp4", "mov", "webm", "mkv", "avi"] },
+    { name: "Subtitles / Lyrics", extensions: ["srt", "vtt", "lrc", "ass", "ssa"] },
     { name: "VoxMatch Project", extensions: [VXM_EXTENSION] },
     { name: "All Files", extensions: ["*"] }
   ];
@@ -385,6 +401,15 @@ import_electron.ipcMain.handle("file:getMediaUrl", async (_event, filePath) => {
   const encoded = encodeURIComponent(filePath);
   return `media://local/${encoded}`;
 });
+import_electron.ipcMain.handle(
+  "file:readText",
+  async (_event, filePath) => {
+    if (!validateFilePath(filePath)) {
+      throw new Error(`File not found or inaccessible: ${filePath}`);
+    }
+    return fs.readFileSync(filePath, "utf-8");
+  }
+);
 import_electron.ipcMain.handle("file:loadProject", async (_event, filePath) => {
   if (!validateFilePath(filePath)) {
     throw new Error(`Project file not found: ${filePath}`);
@@ -444,24 +469,62 @@ import_electron.ipcMain.handle(
     if (typeof options?.content !== "string") {
       throw new Error('export:writeText requires a "content" string.');
     }
-    let targetPath = options.filePath;
-    if (!targetPath) {
-      const result = await import_electron.dialog.showSaveDialog(mainWindow, {
-        title: options.title || "Export File",
-        defaultPath: options.defaultPath || "export.txt",
-        filters: options.filters || [{ name: "All Files", extensions: ["*"] }]
-      });
-      if (result.canceled || !result.filePath) {
-        return { success: false };
+    const jobId = options.jobId || `job-${Date.now()}`;
+    try {
+      emitExportProgress(jobId, "starting", 0, "Preparing export\u2026");
+      let targetPath = options.filePath;
+      if (!targetPath) {
+        const result = await import_electron.dialog.showSaveDialog(mainWindow, {
+          title: options.title || "Export File",
+          defaultPath: options.defaultPath || "export.txt",
+          filters: options.filters || [{ name: "All Files", extensions: ["*"] }]
+        });
+        if (result.canceled || !result.filePath) {
+          emitExportProgress(jobId, "error", 0, "Cancelled");
+          return { success: false };
+        }
+        targetPath = result.filePath;
       }
-      targetPath = result.filePath;
+      const dir = path.dirname(targetPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      emitExportProgress(jobId, "writing", 10, "Writing file\u2026");
+      const tmpPath = `${targetPath}.tmp-${Date.now()}`;
+      const fd = fs.openSync(tmpPath, "w");
+      try {
+        const content = options.content;
+        const total = content.length;
+        const CHUNK = Math.max(4096, Math.ceil(total / 20));
+        let written = 0;
+        while (written < total) {
+          const chunk = content.slice(written, written + CHUNK);
+          fs.writeSync(fd, chunk, null, "utf-8");
+          written += chunk.length;
+          const ratio = total === 0 ? 1 : written / total;
+          const percent = 10 + ratio * 80;
+          emitExportProgress(
+            jobId,
+            "writing",
+            percent,
+            `Writing\u2026 ${Math.round(ratio * 100)}%`
+          );
+        }
+      } finally {
+        fs.closeSync(fd);
+      }
+      emitExportProgress(jobId, "finalizing", 95, "Finalizing\u2026");
+      fs.renameSync(tmpPath, targetPath);
+      emitExportProgress(jobId, "done", 100, "Export complete");
+      return { success: true, path: targetPath };
+    } catch (err) {
+      console.error("export:writeText failed:", err);
+      emitExportProgress(
+        jobId,
+        "error",
+        0,
+        err instanceof Error ? err.message : "Export failed"
+      );
+      throw err;
     }
-    const dir = path.dirname(targetPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const tmpPath = `${targetPath}.tmp-${Date.now()}`;
-    fs.writeFileSync(tmpPath, options.content, "utf-8");
-    fs.renameSync(tmpPath, targetPath);
-    return { success: true, path: targetPath };
   }
 );
 import_electron.ipcMain.handle("dev:openDevTools", () => {

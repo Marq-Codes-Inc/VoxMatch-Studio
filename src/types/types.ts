@@ -12,11 +12,6 @@ export interface ImportedMediaFile {
   url: string | null;
   loaded: boolean;
   file?: File;
-  /**
-   * Small JPEG data URL extracted from the video, used for thumbnails
-   * outside the editor (home screen, project cards, future previews).
-   * Persisted in the .vxm file.
-   */
   posterDataUrl?: string | null;
 }
 
@@ -186,3 +181,4 @@ export interface ProjectMetadata {
 }
 
 export const VXM_SCHEMA_VERSION = 1;
+

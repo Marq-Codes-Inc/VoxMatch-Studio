@@ -10,6 +10,7 @@ import { LayerPreview } from './components/LayerPreview';
 import { ColorInput } from './components/ColorInput';
 import { useLayers } from './hooks/useLayers';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
+import { useProjectEditor } from '../../../contexts/ProjectEditorContext';
 
 interface StageSettingsContentProps {
   stageStyle: StageStyle;
@@ -20,7 +21,7 @@ interface StageSettingsContentProps {
 export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
   stageStyle,
   setStageStyle,
-  onClose
+  onClose,
 }) => {
   const {
     layers,
@@ -29,19 +30,21 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
     removeLayer,
     duplicateLayer,
     moveLayer,
-  } = useLayers(stageStyle.layers || [
-    { 
-      id: 'base', 
-      type: 'color', 
-      content: '#1a1a1a', 
-      opacity: 1, 
-      blendMode: 'normal',
-      visible: true,
-      name: 'Background',
-      locked: true
-    }
-  ]);
-  
+  } = useLayers(
+    stageStyle.layers || [
+      {
+        id: 'base',
+        type: 'color',
+        content: '#1a1a1a',
+        opacity: 1,
+        blendMode: 'normal',
+        visible: true,
+        name: 'Background',
+        locked: true,
+      },
+    ],
+  );
+
   const {
     draggedIndex,
     dragOverIndex,
@@ -50,14 +53,34 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
     handleDragEnd,
     handleDrop,
   } = useDragAndDrop(moveLayer);
-  
-  const [aspectRatio, setAspectRatio] = useState(stageStyle.aspectRatio || '16:9');
-  const [customWidth, setCustomWidth] = useState(stageStyle.customWidth || 1920);
-  const [customHeight, setCustomHeight] = useState(stageStyle.customHeight || 1080);
-  const [showSafeArea, setShowSafeArea] = useState(stageStyle.showSafeArea || false);
-  const [backgroundColor, setBackgroundColor] = useState(stageStyle.backgroundColor || '#000000');
 
-  // Drawer state for display settings
+  // Pull the active media file from the editor context (no prop drilling)
+  const { activeFile } = useProjectEditor();
+  const hasActiveVideo = !!activeFile && activeFile.type.startsWith('video');
+  const hasActiveAudio = !!activeFile && activeFile.type.startsWith('audio');
+
+  const [aspectRatio, setAspectRatio] = useState(
+    stageStyle.aspectRatio || '16:9',
+  );
+  const [customWidth, setCustomWidth] = useState(stageStyle.customWidth || 1920);
+  const [customHeight, setCustomHeight] = useState(
+    stageStyle.customHeight || 1080,
+  );
+  const [showSafeArea, setShowSafeArea] = useState(
+    stageStyle.showSafeArea || false,
+  );
+  const [backgroundColor, setBackgroundColor] = useState(
+    stageStyle.backgroundColor || '#000000',
+  );
+
+  // NEW: media overlay toggles
+  const [hideVideoLayer, setHideVideoLayer] = useState(
+    stageStyle.hideVideoLayer ?? false,
+  );
+  const [hideAudioTitle, setHideAudioTitle] = useState(
+    stageStyle.hideAudioTitle ?? false,
+  );
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleSave = useCallback(() => {
@@ -69,10 +92,24 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
       customHeight,
       showSafeArea,
       backgroundColor,
+      hideVideoLayer,
+      hideAudioTitle,
     });
-    
+
     onClose?.();
-  }, [layers, aspectRatio, customWidth, customHeight, showSafeArea, backgroundColor, stageStyle, setStageStyle, onClose]);
+  }, [
+    layers,
+    aspectRatio,
+    customWidth,
+    customHeight,
+    showSafeArea,
+    backgroundColor,
+    hideVideoLayer,
+    hideAudioTitle,
+    stageStyle,
+    setStageStyle,
+    onClose,
+  ]);
 
   const getAspectRatioValue = (ratio: string): number => {
     const ratios: Record<string, number> = {
@@ -91,7 +128,6 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Panel - Layer List */}
         <div className="w-80 flex-shrink-0 border-r border-app-border bg-app-gray-dark/20 flex flex-col overflow-hidden">
-          {/* Fixed Header */}
           <div className="flex-shrink-0 p-4 border-b border-app-border bg-app-surface z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -104,8 +140,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
               <AddLayerButton onAddLayer={addLayer} />
             </div>
           </div>
-          
-          {/* Scrollable Layers Content */}
+
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-2">
               {layers.map((layer, index) => (
@@ -127,7 +162,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
                 />
               ))}
             </div>
-            
+
             {layers.length === 0 && (
               <div className="text-center py-12 text-app-gray">
                 <Layers size={48} className="mx-auto mb-3 opacity-30" />
@@ -137,14 +172,15 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
             )}
           </div>
         </div>
-        
-        {/* Right Panel - Preview area with settings drawer toggle */}
+
+        {/* Right Panel - Preview + Drawer */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Top bar with stage title and drawer toggle button */}
           <div className="flex-shrink-0 p-4 border-b border-app-border bg-app-gray-dark/10 z-10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Monitor size={18} className="text-primary" />
-              <h3 className="text-sm font-semibold text-app-text">Stage Preview</h3>
+              <h3 className="text-sm font-semibold text-app-text">
+                Stage Preview
+              </h3>
             </div>
             <button
               onClick={() => setIsDrawerOpen(true)}
@@ -152,11 +188,12 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
               title="Open display settings"
             >
               <Settings size={16} />
-              <span className="text-xs font-medium hidden sm:inline">Settings</span>
+              <span className="text-xs font-medium hidden sm:inline">
+                Settings
+              </span>
             </button>
           </div>
-          
-          {/* Full‑size preview (big by default) */}
+
           <div className="flex-1 p-4 overflow-auto flex items-center justify-center bg-app-gray-dark/5">
             <LayerPreview
               layers={layers}
@@ -166,7 +203,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
             />
           </div>
 
-          {/* Drawer sidebar (slides in from the right) */}
+          {/* Drawer */}
           <div
             className={`
               absolute top-0 right-0 h-full z-20 bg-app-surface border-l border-app-border
@@ -175,7 +212,6 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
               ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}
             `}
           >
-            {/* Drawer header */}
             <div className="flex items-center justify-between p-4 border-b border-app-border">
               <h3 className="text-sm font-semibold text-app-text flex items-center gap-2">
                 <Settings size={16} className="text-primary" />
@@ -189,9 +225,8 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
               </button>
             </div>
 
-            {/* Drawer content (scrollable) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
-              {/* Aspect Ratio Section */}
+              {/* Aspect Ratio */}
               <div className="space-y-3">
                 <Dropdown
                   id="aspect-ratio"
@@ -201,11 +236,13 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
                   options={ASPECT_RATIO_OPTIONS}
                   onChange={(_, val) => setAspectRatio(val)}
                 />
-                
+
                 {aspectRatio === 'custom' && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="text-xs font-medium text-app-gray mb-1 block">Width (px)</label>
+                      <label className="text-xs font-medium text-app-gray mb-1 block">
+                        Width (px)
+                      </label>
                       <input
                         type="number"
                         value={customWidth}
@@ -216,7 +253,9 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-app-gray mb-1 block">Height (px)</label>
+                      <label className="text-xs font-medium text-app-gray mb-1 block">
+                        Height (px)
+                      </label>
                       <input
                         type="number"
                         value={customHeight}
@@ -230,7 +269,7 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
                 )}
               </div>
 
-              {/* Background Color Section */}
+              {/* Background */}
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-app-text">Background</h4>
                 <ColorInput
@@ -238,25 +277,105 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
                   onChange={setBackgroundColor}
                   label="Background Color"
                 />
-                <p className="text-xs text-app-gray/70">Fallback color when no layers are visible</p>
+                <p className="text-xs text-app-gray/70">
+                  Fallback color when no layers are visible
+                </p>
               </div>
 
-              {/* Safe Area Section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium text-app-text">Safe Area Guide</h4>
-                    <p className="text-xs text-app-gray/70 mt-0.5">Title & action safe zones</p>
+              {/* Media Overlay */}
+              <div className="space-y-3 pt-4 border-t border-app-border">
+                <h4 className="text-sm font-medium text-app-text">
+                  Media Overlay
+                </h4>
+
+                {hasActiveVideo && (
+                  <div className="flex items-center justify-between">
+                    <div className="pr-3">
+                      <h5 className="text-sm font-medium text-app-text">
+                        Show Video
+                      </h5>
+                      <p className="text-xs text-app-gray/70 mt-0.5">
+                        Turn off to design a pure stage behind the lyrics
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={!hideVideoLayer}
+                        onChange={(e) => setHideVideoLayer(!e.target.checked)}
+                      />
+                      <div className="w-10 h-5 bg-app-gray-light rounded-full peer peer-checked:bg-primary transition-colors">
+                        <div
+                          className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-transform ${
+                            hideVideoLayer ? 'translate-x-0.5' : 'translate-x-5'
+                          }`}
+                        />
+                      </div>
+                    </label>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
+                )}
+
+                {hasActiveAudio && (
+                  <div className="flex items-center justify-between">
+                    <div className="pr-3">
+                      <h5 className="text-sm font-medium text-app-text">
+                        Show Audio Title
+                      </h5>
+                      <p className="text-xs text-app-gray/70 mt-0.5">
+                        Hide the placeholder card to design a clean stage
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={!hideAudioTitle}
+                        onChange={(e) => setHideAudioTitle(!e.target.checked)}
+                      />
+                      <div className="w-10 h-5 bg-app-gray-light rounded-full peer peer-checked:bg-primary transition-colors">
+                        <div
+                          className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-transform ${
+                            hideAudioTitle ? 'translate-x-0.5' : 'translate-x-5'
+                          }`}
+                        />
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {!hasActiveVideo && !hasActiveAudio && (
+                  <p className="text-xs text-app-gray/70">
+                    Import and activate a media file to control its overlay
+                    here.
+                  </p>
+                )}
+              </div>
+
+              {/* Safe Area */}
+              <div className="space-y-3 pt-4 border-t border-app-border">
+                <div className="flex items-center justify-between">
+                  <div className="pr-3">
+                    <h4 className="text-sm font-medium text-app-text">
+                      Safe Area Guide
+                    </h4>
+                    <p className="text-xs text-app-gray/70 mt-0.5">
+                      Title &amp; action safe zones
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
                       checked={showSafeArea}
                       onChange={(e) => setShowSafeArea(e.target.checked)}
                     />
                     <div className="w-10 h-5 bg-app-gray-light rounded-full peer peer-checked:bg-primary transition-colors">
-                      <div className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-transform ${showSafeArea ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      <div
+                        className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-transform ${
+                          showSafeArea ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
                     </div>
                   </label>
                 </div>
@@ -266,13 +385,13 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
 
           {isDrawerOpen && (
             <div
-              className="absolute inset-0 z-10 bg-black/10 "
+              className="absolute inset-0 z-10 bg-black/10"
               onClick={() => setIsDrawerOpen(false)}
             />
           )}
         </div>
       </div>
-      
+
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-app-border p-4 flex items-center justify-end gap-3 bg-app-surface z-30">
         <button
@@ -294,4 +413,3 @@ export const StageSettingsContent: React.FC<StageSettingsContentProps> = ({
 };
 
 export default StageSettingsContent;
-

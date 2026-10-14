@@ -16,6 +16,11 @@ var electronAPI = {
   // Export
   exportVideo: (options) => import_electron.ipcRenderer.invoke("export:video", options),
   exportSubtitles: (options) => import_electron.ipcRenderer.invoke("export:subtitles", options),
+  /**
+   * Write text to a file (SRT/VTT/LRC/ASS, etc.).
+   * If no filePath is passed, a save dialog is shown.
+   */
+  writeTextFile: (options) => import_electron.ipcRenderer.invoke("export:writeText", options),
   // App
   getAppVersion: () => import_electron.ipcRenderer.invoke("app:getVersion"),
   getPlatform: () => import_electron.ipcRenderer.invoke("app:getPlatform"),

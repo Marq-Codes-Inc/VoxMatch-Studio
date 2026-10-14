@@ -1,6 +1,14 @@
 // src/types/global.d.ts
 export {};
 
+export interface ExportProgressEvent {
+  jobId: string;
+  stage: 'starting' | 'writing' | 'finalizing' | 'done' | 'error';
+  percent: number;
+  message?: string;
+  timestamp: number;
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -34,6 +42,14 @@ declare global {
         success: boolean;
         path?: string;
       }>;
+      writeTextFile: (options: {
+        content: string;
+        filePath?: string;
+        title?: string;
+        defaultPath?: string;
+        filters?: any[];
+        jobId?: string;
+      }) => Promise<{ success: boolean; path?: string }>;
       getAppVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
       minimizeWindow: () => void;
@@ -45,3 +61,4 @@ declare global {
     __REACT_APP_READY__?: boolean;
   }
 }
+

@@ -36,7 +36,9 @@ export function deserializeProject(raw: string): VoxMatchProject {
     parsed = JSON.parse(raw);
   } catch (err) {
     throw new Error(
-      `Invalid .vxm file: not valid JSON. ${err instanceof Error ? err.message : ''}`.trim(),
+      `Invalid .vxm file: not valid JSON. ${
+        err instanceof Error ? err.message : ''
+      }`.trim(),
     );
   }
   if (!parsed || typeof parsed !== 'object') {
@@ -62,6 +64,14 @@ export function normalizeProject(raw: any): VoxMatchProject {
 
   const now = Date.now();
 
+  const mergedStageStyle = {
+    ...DEFAULT_STAGE_STYLE,
+    ...(raw.stageStyle || {}),
+    // Ensure the new flags always have a defined boolean
+    hideVideoLayer: Boolean(raw.stageStyle?.hideVideoLayer),
+    hideAudioTitle: Boolean(raw.stageStyle?.hideAudioTitle),
+  };
+
   const project: VoxMatchProject = {
     id: raw.id,
     name: raw.name,
@@ -77,7 +87,7 @@ export function normalizeProject(raw: any): VoxMatchProject {
       typeof raw.activeFileId === 'string' ? raw.activeFileId : null,
     markers: Array.isArray(raw.markers) ? raw.markers : [],
     settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
-    stageStyle: { ...DEFAULT_STAGE_STYLE, ...(raw.stageStyle || {}) },
+    stageStyle: mergedStageStyle,
     lyricTextStyle: { ...DEFAULT_TEXT_STYLE, ...(raw.lyricTextStyle || {}) },
     subtitleTextStyle: {
       ...DEFAULT_TEXT_STYLE,

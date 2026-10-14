@@ -91,6 +91,19 @@ export interface StageStyle {
   customWidth?: number;
   customHeight?: number;
   showSafeArea?: boolean;
+
+  /**
+   * When true, the active video element is hidden (display: none) so the
+   * underlying stage (layers / color / image) can be designed freely.
+   * The video element is still mounted to preserve playback and audio routing.
+   */
+  hideVideoLayer?: boolean;
+
+  /**
+   * When true, the placeholder "Audio File" card is hidden, letting the
+   * stage layers show through untouched.
+   */
+  hideAudioTitle?: boolean;
 }
 
 // Text Styles
@@ -178,3 +191,4 @@ export interface ProjectMetadata {
 }
 
 export const VXM_SCHEMA_VERSION = 1;
+

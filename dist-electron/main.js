@@ -437,6 +437,33 @@ import_electron.ipcMain.handle("export:subtitles", async (_event, options = {}) 
   });
   return { success: !result.canceled, path: result.filePath };
 });
+import_electron.ipcMain.handle(
+  "export:writeText",
+  async (_event, options) => {
+    if (!mainWindow) throw new Error("No active window");
+    if (typeof options?.content !== "string") {
+      throw new Error('export:writeText requires a "content" string.');
+    }
+    let targetPath = options.filePath;
+    if (!targetPath) {
+      const result = await import_electron.dialog.showSaveDialog(mainWindow, {
+        title: options.title || "Export File",
+        defaultPath: options.defaultPath || "export.txt",
+        filters: options.filters || [{ name: "All Files", extensions: ["*"] }]
+      });
+      if (result.canceled || !result.filePath) {
+        return { success: false };
+      }
+      targetPath = result.filePath;
+    }
+    const dir = path.dirname(targetPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmpPath = `${targetPath}.tmp-${Date.now()}`;
+    fs.writeFileSync(tmpPath, options.content, "utf-8");
+    fs.renameSync(tmpPath, targetPath);
+    return { success: true, path: targetPath };
+  }
+);
 import_electron.ipcMain.handle("dev:openDevTools", () => {
   if (isDev && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.openDevTools({ mode: "detach" });

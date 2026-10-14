@@ -26,6 +26,22 @@ const electronAPI = {
   exportSubtitles: (options: any) =>
     ipcRenderer.invoke('export:subtitles', options),
 
+  /**
+   * Write text to a file with progress events.
+   * If no filePath is passed, a save dialog is shown.
+   *
+   * Emits `export:progress` events that the renderer can subscribe to via
+   * `on('export:progress', handler)`.
+   */
+  writeTextFile: (options: {
+    content: string;
+    filePath?: string;
+    title?: string;
+    defaultPath?: string;
+    filters?: any[];
+    jobId?: string;
+  }) => ipcRenderer.invoke('export:writeText', options),
+
   // App
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),

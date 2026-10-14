@@ -101,10 +101,19 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   const pointerIdRef = useRef<number | null>(null);
 
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [backgroundVideoUrl, setBackgroundVideoUrl] = useState<string | null>(null);
+  const [backgroundVideoUrl, setBackgroundVideoUrl] = useState<string | null>(
+    null,
+  );
 
   const isVideo = !!activeFile && activeFile.type.startsWith('video');
   const isAudioFile = !!activeFile && activeFile.type.startsWith('audio');
+
+  // Feature flags from stage settings
+  const hideVideoLayer = !!stageStyle.hideVideoLayer;
+  const hideAudioTitle = !!stageStyle.hideAudioTitle;
+
+  const showVideoElement = isVideo && !hideVideoLayer;
+  const showAudioCard = isAudioFile;
 
   useEffect(() => {
     if (!isAudioFile) {
@@ -112,20 +121,16 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       return;
     }
     const videoLayer = stageStyle.layers?.find(
-      l => l.type === 'video' && l.visible !== false && l.content,
+      (l) => l.type === 'video' && l.visible !== false && l.content,
     );
-    if (videoLayer && videoLayer.content) {
-      setBackgroundVideoUrl(videoLayer.content);
-    } else {
-      setBackgroundVideoUrl(null);
-    }
+    setBackgroundVideoUrl(videoLayer?.content || null);
   }, [stageStyle.layers, isAudioFile]);
 
   useEffect(() => {
     if (!backgroundVideoRef.current || !backgroundVideoUrl) return;
     const video = backgroundVideoRef.current;
     if (isPlaying) {
-      video.play().catch(e => console.warn('Background video play failed:', e));
+      video.play().catch((e) => console.warn('Background video play failed:', e));
     } else {
       video.pause();
     }
@@ -262,7 +267,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
 
   const progressPercent =
     mediaDuration > 0 ? (currentTime / mediaDuration) * 100 : 0;
-  const visibleLayers = stageStyle.layers?.filter(l => l.visible !== false) || [];
+  const visibleLayers = stageStyle.layers?.filter((l) => l.visible !== false) || [];
   const showBackgroundVideo = isAudioFile && backgroundVideoUrl && !isVideo;
 
   return (
@@ -299,16 +304,21 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
               : stageAspectRatio,
           }}
         >
+          {/* Stage layers (always rendered underneath) */}
           <div className="absolute inset-0 z-0">
             <div
               className="absolute inset-0"
               style={{ backgroundColor: stageStyle.backgroundColor || '#000000' }}
             />
-            {visibleLayers.map(layer => (
+            {visibleLayers.map((layer) => (
               <div key={layer.id} style={renderLayer(layer)} />
             ))}
           </div>
 
+          {/*
+            Video element is ALWAYS mounted so playback / audio routing keep
+            working. When `hideVideoLayer` is on we simply hide it visually.
+          */}
           <video
             ref={mediaElementRef}
             src={isMediaLoaded ? mediaUrl || undefined : undefined}
@@ -319,7 +329,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
               }
             }}
             className="absolute inset-0 w-full h-full object-contain z-10"
-            style={{ display: isVideo ? 'block' : 'none' }}
+            style={{ display: showVideoElement ? 'block' : 'none' }}
             playsInline
             preload="auto"
           />
@@ -327,7 +337,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
           {showBackgroundVideo && (
             <video
               ref={backgroundVideoRef}
-              src={backgroundVideoUrl}
+              src={backgroundVideoUrl || undefined}
               className="absolute inset-0 w-full h-full object-cover z-5"
               loop
               muted
@@ -335,7 +345,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             />
           )}
 
-          {isAudioFile && !showBackgroundVideo && (
+          {showAudioCard && !showBackgroundVideo && !hideAudioTitle && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50">
               <FileAudio size={48} className="text-primary mb-4" />
               <div className="text-lg font-medium text-white mb-2">

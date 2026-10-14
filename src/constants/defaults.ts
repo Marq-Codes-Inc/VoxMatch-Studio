@@ -1,11 +1,18 @@
 // src/constants/defaults.ts
-import { AppSettings, StageStyle, TextStyle, LayoutState, TimingSettings, VoxMatchProject } from '../types/types';
+import {
+  AppSettings,
+  StageStyle,
+  TextStyle,
+  LayoutState,
+  TimingSettings,
+  VoxMatchProject,
+} from '../types/types';
 
 export const DEFAULT_TIMING: TimingSettings = {
   baseDurationPerChar: 0.08,
   minClipDuration: 1.0,
   maxClipDuration: 5.0,
-  pauseBetweenClips: 0.2
+  pauseBetweenClips: 0.2,
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -14,7 +21,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   snapToGrid: true,
   waveformColor: '#046466',
   defaultReadingSpeed: 'normal',
-  timing: DEFAULT_TIMING
+  timing: DEFAULT_TIMING,
 };
 
 export const DEFAULT_STAGE_STYLE: StageStyle = {
@@ -26,15 +33,19 @@ export const DEFAULT_STAGE_STYLE: StageStyle = {
       opacity: 1,
       blendMode: 'normal',
       visible: true,
-      name: 'Background'
-    }
+      name: 'Background',
+    },
   ],
   backgroundColor: '#000000',
   backgroundOpacity: 1,
   aspectRatio: '16:9',
   customWidth: 1920,
   customHeight: 1080,
-  showSafeArea: false
+  showSafeArea: false,
+
+  // NEW: media overlay toggles default to visible
+  hideVideoLayer: false,
+  hideAudioTitle: false,
 };
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
@@ -55,7 +66,7 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   position: { x: 0, y: 0 },
   width: 90,
   verticalAlign: 'flex-end',
-  horizontalAlign: 'center'
+  horizontalAlign: 'center',
 };
 
 export const DEFAULT_LAYOUT: LayoutState = {
@@ -70,8 +81,8 @@ export const DEFAULT_LAYOUT: LayoutState = {
     lyricsPanelHeight: 60,
     timelinePanelHeight: 40,
     importMediaPanelVerticalWidth: 40,
-    leftPanelBottomHeight: 60
-  }
+    leftPanelBottomHeight: 60,
+  },
 };
 
 export function createDefaultProject(name?: string): Omit<VoxMatchProject, 'id'> {
@@ -91,7 +102,6 @@ export function createDefaultProject(name?: string): Omit<VoxMatchProject, 'id'>
     zoom: 1,
     isSaved: false,
     createdAt: Date.now(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
   };
 }
-

@@ -339,12 +339,6 @@ function App() {
     [activeProject],
   );
 
-  // Project updates from editor
-  //
-  // The parent is the source of truth for `updatedAt`. We bump it here,
-  // ONLY when content actually changed (per shallowCompareProjects), so
-  // the caller's sync effect can pass the same content back without
-  // creating a feedback loop.
   const handleProjectUpdate = useCallback(
     (updatedProject: VoxMatchProject) => {
       if (isUpdatingRef.current) return;
@@ -521,4 +515,3 @@ function App() {
 }
 
 export default App;
-

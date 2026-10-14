@@ -10,33 +10,17 @@ import { getAspectRatio, hexToRgb, clamp01 } from './utils';
 
 interface SnapshotOptions {
   stageStyle: StageStyle;
-  /** Current lyric/subtitle text to draw (optional). */
   overlayText?: string | null;
-  /** Style used to render the overlay text. */
   textStyle?: TextStyle;
-  /** Width in device pixels. Height is derived from aspect ratio. */
   width?: number;
-  /** Media element to draw as the video frame (optional, editor only). */
   mediaElement?: HTMLVideoElement | null;
-  /** Media type — controls whether we skip drawing the video element. */
   mediaIsVideo?: boolean;
-  /** Fallback image data URL used when no live video is available. */
   posterDataUrl?: string | null;
-  /** Honour the "hide video" flag in the current stage settings. */
   hideVideoLayer?: boolean;
-  /** Honour the "hide audio title" flag in the current stage settings. */
   hideAudioTitle?: boolean;
-  /** Active file name — drawn in the audio placeholder when applicable. */
   activeFileName?: string | null;
 }
 
-/**
- * Offscreen-render the current stage to a PNG data URL.
- * - Video element (if provided and ready) is drawn first.
- * - Falls back to a static `posterDataUrl` when no live element is available.
- * - Layers are painted in order.
- * - Overlay text is drawn last using the supplied text style.
- */
 export async function renderStageSnapshot(
   options: SnapshotOptions,
 ): Promise<string> {
@@ -62,11 +46,11 @@ export async function renderStageSnapshot(
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
-  // ----- Base background -----
+  // Base background
   ctx.fillStyle = stageStyle.backgroundColor || '#000000';
   ctx.fillRect(0, 0, width, height);
 
-  // ----- Video element OR static poster (only when visible) -----
+  // Video element OR static poster (only when visible)
   if (mediaIsVideo && !hideVideoLayer) {
     const liveFrameAvailable =
       mediaElement && mediaElement.readyState >= 2 /* HAVE_CURRENT_DATA */;
@@ -89,13 +73,13 @@ export async function renderStageSnapshot(
     }
   }
 
-  // ----- Layers -----
+  // Layers
   const layers = (stageStyle.layers || []).filter((l) => l.visible !== false);
   for (const layer of layers) {
     await drawLayer(ctx, layer, width, height);
   }
 
-  // ----- Audio title placeholder -----
+  // Audio title placeholder
   const isAudioActive = !!activeFileName && !mediaIsVideo;
   if (isAudioActive && !hideAudioTitle) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -103,7 +87,7 @@ export async function renderStageSnapshot(
     drawCenteredText(ctx, '♪ Audio', width, height);
   }
 
-  // ----- Overlay text -----
+  // Overlay text
   if (overlayText && textStyle) {
     drawOverlayText(ctx, overlayText, textStyle, width, height);
   }

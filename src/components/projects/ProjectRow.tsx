@@ -20,6 +20,24 @@ interface ProjectRowProps {
   formatDate: (timestamp: number) => string;
 }
 
+function totalClips(project: VoxMatchProject): number {
+  let total = 0;
+  const tracks = project.tracks ?? {};
+  for (const t of Object.values(tracks)) {
+    total += (t?.lyrics?.length ?? 0) + (t?.subtitles?.length ?? 0);
+  }
+  return total;
+}
+
+function hasAnyContent(project: VoxMatchProject): boolean {
+  const tracks = project.tracks ?? {};
+  for (const t of Object.values(tracks)) {
+    if ((t?.lyrics?.length ?? 0) > 0) return true;
+    if ((t?.subtitles?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 export const ProjectRow: React.FC<ProjectRowProps> = ({
   project,
   onOpen,
@@ -55,8 +73,8 @@ export const ProjectRow: React.FC<ProjectRowProps> = ({
     f.type.startsWith('audio'),
   ).length;
 
-  const hasContent =
-    project.lyrics.length > 0 || project.subtitles.length > 0;
+  const hasContent = hasAnyContent(project);
+  const clipCount = totalClips(project);
 
   return (
     <>
@@ -117,7 +135,7 @@ export const ProjectRow: React.FC<ProjectRowProps> = ({
                 {audioCount}
               </span>
               <span className="flex items-center gap-1">
-                {project.subtitles.length + project.lyrics.length} clips
+                {clipCount} clips
               </span>
             </div>
           </div>

@@ -4,6 +4,7 @@ import {
   AppSettings,
   ImportedMediaFile,
   VoxMatchProject,
+  FileTrack,
 } from '../../types/types';
 import {
   serializeSubtitles,
@@ -118,14 +119,17 @@ function sanitizeFileName(name: string): string {
     .trim();
 }
 
+/* Strip a trailing extension from a filename */
+function stripExtension(name: string): string {
+  return name.replace(/\.[^.]+$/, '');
+}
+
 function makeJobId(): string {
   return `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Join folder + filename with the correct separator for the platform. */
 function joinPath(folder: string, fileName: string): string {
   if (!folder) return fileName;
-  // Detect Windows-style path (drive letter or backslash)
   const isWindows = /^[a-zA-Z]:\\/.test(folder) || folder.includes('\\');
   const sep = isWindows ? '\\' : '/';
   const trimmed = folder.replace(/[\\/]+$/, '');
@@ -148,6 +152,22 @@ function storePath(path: string): void {
   }
 }
 
+/* Resolve the active track, or an empty fallback. */
+function getActiveTrack(project: VoxMatchProject): FileTrack {
+  const empty: FileTrack = {
+    lyrics: [],
+    subtitles: [],
+    markers: [],
+    stageStyle: ({} as any),
+    lyricTextStyle: ({} as any),
+    subtitleTextStyle: ({} as any),
+    zoom: 1,
+    mode: project.mode,
+  };
+  if (!project.activeFileId) return empty;
+  return project.tracks?.[project.activeFileId] ?? empty;
+}
+
 // Stage thumbnail
 
 const StageThumbnail: React.FC<{
@@ -161,6 +181,7 @@ const StageThumbnail: React.FC<{
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isVideo = !!file && file.type.startsWith('video');
+  const track = getActiveTrack(project);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,20 +189,20 @@ const StageThumbnail: React.FC<{
 
     const textStyle =
       project.mode === 'lyrics'
-        ? project.lyricTextStyle
-        : project.subtitleTextStyle;
+        ? track.lyricTextStyle
+        : track.subtitleTextStyle;
 
     const videoEl = isVideo ? mediaElementRef?.current ?? null : null;
 
     renderStageSnapshot({
-      stageStyle: project.stageStyle,
+      stageStyle: track.stageStyle,
       overlayText: overlayText || undefined,
       textStyle,
       width: 480,
       mediaElement: videoEl,
       mediaIsVideo: isVideo,
-      hideVideoLayer: project.stageStyle.hideVideoLayer,
-      hideAudioTitle: project.stageStyle.hideAudioTitle,
+      hideVideoLayer: track.stageStyle.hideVideoLayer,
+      hideAudioTitle: track.stageStyle.hideAudioTitle,
       activeFileName: file?.name || null,
     })
       .then((url) => {
@@ -196,10 +217,10 @@ const StageThumbnail: React.FC<{
       cancelled = true;
     };
   }, [
-    project.stageStyle,
     project.mode,
-    project.lyricTextStyle,
-    project.subtitleTextStyle,
+    track.stageStyle,
+    track.lyricTextStyle,
+    track.subtitleTextStyle,
     file?.name,
     overlayText,
     isVideo,
@@ -236,7 +257,7 @@ const StageThumbnail: React.FC<{
       </button>
 
       <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/60 text-[9px] text-white/90">
-        {project.stageStyle.aspectRatio || '16:9'}
+        {track.stageStyle.aspectRatio || '16:9'}
       </span>
     </div>
   );
@@ -250,24 +271,21 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
   onClose,
   mediaElementRef,
 }) => {
-  const hasSubtitles = project.subtitles.length > 0;
-  const hasLyrics = project.lyrics.length > 0;
+  const track = getActiveTrack(project);
+  const hasSubtitles = (track.subtitles?.length ?? 0) > 0;
+  const hasLyrics = (track.lyrics?.length ?? 0) > 0;
 
   const defaultKind: ExportKind = hasSubtitles
     ? 'subtitles'
     : hasLyrics
-    ? 'lyrics'
-    : 'video';
+      ? 'lyrics'
+      : 'video';
 
-  // Form state
   const [kind, setKind] = useState<ExportKind>(defaultKind);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
-  const [fileName, setFileName] = useState<string>(() =>
-    sanitizeFileName(project.name || 'export'),
-  );
   const [lastEditedExt, setLastEditedExt] = useState<string | null>(null);
 
-  // NEW: export folder
+  // Export folder
   const [exportPath, setExportPath] = useState<string>(loadStoredPath);
 
   // In-flight job
@@ -279,9 +297,40 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
 
   const cancelRef = useRef(false);
 
-  // Derived
-  const clips = kind === 'subtitles' ? project.subtitles : project.lyrics;
+  // Derived: which clips the export targets (active file's track)
+  const clips = kind === 'subtitles' ? track.subtitles : track.lyrics;
 
+  // Suffix label depends on export kind — used as the default file name.
+  const kindSuffix =
+    kind === 'video'
+      ?
+        project.mode === 'lyrics'
+        ? 'Lyrics Video'
+        : 'Subtitles Video'
+      : kind === 'lyrics'
+        ? 'Lyrics'
+        : 'Subtitles';
+
+  const defaultBaseName = useMemo(() => {
+    const fileBase = file?.name
+      ? stripExtension(file.name)
+      : project.name || 'export';
+    return `${sanitizeFileName(fileBase)} ${kindSuffix}`.trim();
+  }, [file?.name, project.name, kindSuffix]);
+
+  const [fileNameOverride, setFileNameOverride] = useState<string | null>(null);
+
+  const lastAutoBaseRef = useRef<string>('');
+  useEffect(() => {
+    if (lastAutoBaseRef.current === defaultBaseName) return;
+    lastAutoBaseRef.current = defaultBaseName;
+    setFileNameOverride(null);
+  }, [defaultBaseName]);
+
+  // Effective filename shown in the input.
+  const fileName = fileNameOverride ?? defaultBaseName;
+
+  // Derived
   const activeFormat = useMemo(
     () => SUBTITLE_FORMATS.find((f) => f.value === subtitleFormat)!,
     [subtitleFormat],
@@ -295,7 +344,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     return hasExt ? trimmed : `${trimmed}.${desiredExt}`;
   }, [fileName, desiredExt]);
 
-  // Full destination path (empty folder → rely on the save dialog)
   const destination = useMemo(
     () => (exportPath ? joinPath(exportPath, finalFileName) : ''),
     [exportPath, finalFileName],
@@ -305,15 +353,18 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
   const canExportVideo = !!file;
   const isWorking = jobPromise !== null;
 
-  // Persist chosen folder
   useEffect(() => {
     if (exportPath) storePath(exportPath);
   }, [exportPath]);
 
-  // Keep extension in sync when format changes
+  // Keep the extension on the override in sync when the user changes format
   useEffect(() => {
-    setFileName((prev) => {
-      if (lastEditedExt && prev.toLowerCase().endsWith(`.${lastEditedExt}`)) {
+    setFileNameOverride((prev) => {
+      if (
+        prev &&
+        lastEditedExt &&
+        prev.toLowerCase().endsWith(`.${lastEditedExt}`)
+      ) {
         const base = prev.slice(0, -(lastEditedExt.length + 1));
         return `${base}.${desiredExt}`;
       }
@@ -322,18 +373,14 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     setLastEditedExt(desiredExt);
   }, [desiredExt, lastEditedExt]);
 
-  // Overlay text for the preview snapshot
   const previewText = useMemo(() => {
-    const list = kind === 'lyrics' ? project.lyrics : project.subtitles;
-    if (!list.length) return null;
+    const list = kind === 'lyrics' ? track.lyrics : track.subtitles;
+    if (!list || !list.length) return null;
     return [...list].sort((a, b) => a.startTime - b.startTime)[0].text;
-  }, [kind, project.lyrics, project.subtitles]);
+  }, [kind, track.lyrics, track.subtitles]);
 
-  // Folder picker
   const handleBrowseFolder = useCallback(async () => {
     if (!window.electronAPI?.openFile) {
-      // Web fallback — we can't access a real folder path, so prompt for a
-      // virtual path the user understands won't be enforced.
       const entered = window.prompt(
         'Enter a destination folder (used only as a hint in the browser):',
         exportPath || '',
@@ -355,7 +402,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     }
   }, [exportPath]);
 
-  // Start an export
   const handleExport = () => {
     if (isWorking) return;
 
@@ -384,7 +430,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     setJobPromise(promise);
   };
 
-  // Text export
   const runTextExport = async (id: string): Promise<ExportJobResult> => {
     if (!canExportText) {
       return { success: false, message: 'No clips to export.' };
@@ -392,7 +437,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
 
     const content = serializeSubtitles(clips, subtitleFormat);
 
-    // Browser fallback
     if (!window.electronAPI?.writeTextFile) {
       const blob = new Blob([content], { type: activeFormat.mime });
       const url = URL.createObjectURL(blob);
@@ -404,8 +448,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
       return { success: true, path: finalFileName };
     }
 
-    // If the user chose a folder, we pass the full path so no dialog appears.
-    // Otherwise, we fall back to the OS save dialog by omitting `filePath`.
     const filePath = destination || undefined;
 
     const result = await window.electronAPI.writeTextFile({
@@ -427,7 +469,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     };
   };
 
-  // Video export
   const runVideoExport = async (id: string): Promise<ExportJobResult> => {
     if (!file) {
       return { success: false, message: 'No media file loaded.' };
@@ -454,7 +495,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     return { success: true, path: result.path, partial: true };
   };
 
-  // Overlay lifecycle
   const handleComplete = (_result: ExportJobResult) => {
     setJobId(null);
     setJobPromise(null);
@@ -466,7 +506,6 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     setJobPromise(null);
   };
 
-  // Dropdown options
   const subtitleFormatOptions = SUBTITLE_FORMATS.map((f) => ({
     value: f.value,
     label: f.label,
@@ -505,10 +544,10 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
                 {file?.name || 'No media loaded'}
               </p>
               <p className="text-[11px] text-app-gray mt-1">
-                {project.subtitles.length} subtitle clip
-                {project.subtitles.length === 1 ? '' : 's'} ·{' '}
-                {project.lyrics.length} lyric clip
-                {project.lyrics.length === 1 ? '' : 's'}
+                {track.subtitles.length} subtitle clip
+                {track.subtitles.length === 1 ? '' : 's'} ·{' '}
+                {track.lyrics.length} lyric clip
+                {track.lyrics.length === 1 ? '' : 's'}
               </p>
             </div>
           </div>
@@ -598,7 +637,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
                 value={fileName}
                 disabled={isWorking}
                 onChange={(e) => {
-                  setFileName(e.target.value);
+                  setFileNameOverride(e.target.value);
                   setLastEditedExt(null);
                 }}
                 placeholder="my-export"
@@ -610,7 +649,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
             </div>
           </div>
 
-          {/* Export folder (NEW) */}
+          {/* Export folder */}
           <div>
             <label
               htmlFor="export-path"
@@ -671,7 +710,7 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
                 Clips:{' '}
                 <span className="text-app-text">
                   {kind === 'video'
-                    ? project.subtitles.length + project.lyrics.length
+                    ? track.subtitles.length + track.lyrics.length
                     : clips.length}
                 </span>
               </li>
@@ -732,3 +771,4 @@ export const ExportModalContent: React.FC<ExportModalContentProps> = ({
     </>
   );
 };
+

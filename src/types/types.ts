@@ -149,28 +149,46 @@ export interface ContextMenuState {
   file: ImportedMediaFile | null;
 }
 
+// Per-file Track
+
+export interface FileTrack {
+  lyrics: LyricLine[];
+  subtitles: LyricLine[];
+  markers: TimelineMarker[];
+  stageStyle: StageStyle;
+  lyricTextStyle: TextStyle;
+  subtitleTextStyle: TextStyle;
+  zoom: number;
+  mode: 'lyrics' | 'subtitles';
+}
+
 // Project
 
 export interface VoxMatchProject {
   id: string;
   name: string;
   mode: 'lyrics' | 'subtitles';
-  lyrics: LyricLine[];
-  subtitles: LyricLine[];
   mediaFiles: ImportedMediaFile[];
   activeFileId: string | null;
-  markers: TimelineMarker[];
   settings: AppSettings;
-  stageStyle: StageStyle;
-  lyricTextStyle: TextStyle;
-  subtitleTextStyle: TextStyle;
   layout: LayoutState;
-  zoom: number;
   isSaved: boolean;
   createdAt: number;
   updatedAt: number;
   projectFilePath?: string;
   schemaVersion?: number;
+
+  // Top-level properties (mirror the active track; what existing UI reads/writes)
+  lyrics: LyricLine[];
+  subtitles: LyricLine[];
+  markers: TimelineMarker[];
+  stageStyle: StageStyle;
+  lyricTextStyle: TextStyle;
+  subtitleTextStyle: TextStyle;
+  zoom: number;
+
+  // Track map for multi-file support
+  tracks: Record<string, FileTrack>;
 }
 
 export interface ProjectMetadata {
@@ -180,5 +198,4 @@ export interface ProjectMetadata {
   thumbnail?: string;
 }
 
-export const VXM_SCHEMA_VERSION = 1;
-
+export const VXM_SCHEMA_VERSION = 2;

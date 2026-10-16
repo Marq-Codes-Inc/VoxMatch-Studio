@@ -21,8 +21,7 @@ export function useProjectEditor(
   const mediaPlayback = useMediaPlayback();
 
   const [isProjectSaved, setIsProjectSaved] = useState(initialProject.isSaved);
-  const [activePreferenceSection, setActivePreferenceSection] =
-    useState('general');
+  const [activePreferenceSection, setActivePreferenceSection] = useState('general');
   const [activeHelpSection, setActiveHelpSection] = useState('quick-start');
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
 
@@ -31,15 +30,11 @@ export function useProjectEditor(
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFileInfoModalOpen, setIsFileInfoModalOpen] = useState(false);
-  const [isStageSettingsModalOpen, setIsStageSettingsModalOpen] =
-    useState(false);
-  const [selectedFileInfo, setSelectedFileInfo] =
-    useState<ImportedMediaFile | null>(null);
+  const [isStageSettingsModalOpen, setIsStageSettingsModalOpen] = useState(false);
+  const [selectedFileInfo, setSelectedFileInfo] = useState<ImportedMediaFile | null>(null);
 
   const [isVuOverlayEnabled, setIsVuOverlayEnabled] = useState(false);
-  const toggleVuOverlay = useCallback(() => {
-    setIsVuOverlayEnabled((prev) => !prev);
-  }, []);
+  const toggleVuOverlay = useCallback(() => setIsVuOverlayEnabled((v) => !v), []);
 
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -71,33 +66,28 @@ export function useProjectEditor(
   const markAsUnsaved = useCallback(() => setIsProjectSaved(false), []);
 
   const toggleVerticalLayout = useCallback(() => {
-    setLayout((prev) => ({ ...prev, isVerticalLayout: !prev.isVerticalLayout }));
+    setLayout((p) => ({ ...p, isVerticalLayout: !p.isVerticalLayout }));
     markAsUnsaved();
   }, [markAsUnsaved]);
 
   const toggleMaximizeVideo = useCallback(() => {
-    setLayout((prev) => ({ ...prev, isMaximizedVideo: !prev.isMaximizedVideo }));
+    setLayout((p) => ({ ...p, isMaximizedVideo: !p.isMaximizedVideo }));
   }, []);
 
   const toggleLeftPanelFilled = useCallback(() => {
-    setLayout((prev) => ({ ...prev, isLeftPanelFilled: !prev.isLeftPanelFilled }));
+    setLayout((p) => ({ ...p, isLeftPanelFilled: !p.isLeftPanelFilled }));
   }, []);
 
   const toggleLeftPanelTopRowFilled = useCallback(() => {
-    setLayout((prev) => ({
-      ...prev,
-      isLeftPanelTopRowFilled: !prev.isLeftPanelTopRowFilled,
-    }));
+    setLayout((p) => ({ ...p, isLeftPanelTopRowFilled: !p.isLeftPanelTopRowFilled }));
   }, []);
 
   const toggleAccordion = useCallback((id: string) => {
-    setOpenAccordion((prev) => (prev === id ? null : id));
+    setOpenAccordion((p) => (p === id ? null : id));
   }, []);
 
   const {
     setLoadingFileId,
-    setActiveFileId,
-    updateFileAfterLoad,
     setImportedFiles,
     setSubtitles,
     setLyrics,
@@ -106,6 +96,8 @@ export function useProjectEditor(
     activeFileId,
     importedFiles,
     importClips,
+    switchActiveFile,
+    importFiles,
   } = projectState;
 
   const { loadMediaIntoTimeline, cleanupMedia, currentTime } = mediaPlayback;
@@ -118,14 +110,12 @@ export function useProjectEditor(
     async (file: ImportedMediaFile) => {
       console.log('🎯 Activating file:', file.name);
       setLoadingFileId(file.id);
-      setActiveFileId(file.id);
+      switchActiveFile(file.id);
       try {
         const loadedFile = await loadMediaIntoTimeline(file);
 
-        // ---- Extract a poster frame for the home screen thumbnail ----
         let posterDataUrl = loadedFile.posterDataUrl ?? null;
         const isVideo = loadedFile.type?.startsWith('video');
-
         if (isVideo && !posterDataUrl) {
           const source = loadedFile.url || loadedFile.path;
           if (source) {
@@ -135,11 +125,6 @@ export function useProjectEditor(
                 width: 640,
                 quality: 0.75,
               });
-              console.log(
-                `🖼️ Extracted poster for "${loadedFile.name}" (${Math.round(
-                  posterDataUrl.length / 1024,
-                )} KB)`,
-              );
             } catch (err) {
               console.warn('Could not extract video poster:', err);
             }
@@ -150,13 +135,11 @@ export function useProjectEditor(
           ...loadedFile,
           posterDataUrl: posterDataUrl ?? null,
         };
-
-        updateFileAfterLoad(finalFile);
+        projectState.updateFileAfterLoad(finalFile);
         markAsUnsaved();
         return finalFile;
       } catch (error) {
         console.error('Failed to activate media file:', error);
-        setActiveFileId(null);
         throw error;
       } finally {
         setLoadingFileId(null);
@@ -164,66 +147,47 @@ export function useProjectEditor(
     },
     [
       setLoadingFileId,
-      setActiveFileId,
-      updateFileAfterLoad,
+      switchActiveFile,
       loadMediaIntoTimeline,
       markAsUnsaved,
+      projectState,
     ],
   );
 
   const hasAutoLoadedRef = useRef(false);
-
   useEffect(() => {
     if (!hasAutoLoadedRef.current && initialProject.activeFileId) {
       hasAutoLoadedRef.current = true;
       const fileToLoad = importedFiles.find(
         (f) => f.id === initialProject.activeFileId,
       );
-
-      if (
-        fileToLoad &&
-        !fileToLoad.loaded &&
-        (fileToLoad.path || fileToLoad.url)
-      ) {
-        onFileActivate(fileToLoad).catch((err) => {
-          console.error('Failed to auto-load active media file:', err);
-        });
+      if (fileToLoad && !fileToLoad.loaded && (fileToLoad.path || fileToLoad.url)) {
+        onFileActivate(fileToLoad).catch((err) =>
+          console.error('Failed to auto-load active media file:', err),
+        );
       }
     }
   }, [initialProject.activeFileId, importedFiles, onFileActivate]);
 
-  // ---- Backfill posters for old projects ----
   const posterBackfillRef = useRef(false);
-
   useEffect(() => {
     if (posterBackfillRef.current) return;
     const active = importedFiles.find((f) => f.id === activeFileId);
     if (!active || active.posterDataUrl) return;
     if (!active.type?.startsWith('video')) return;
     if (!active.loaded) return;
-
     posterBackfillRef.current = true;
-
     const source = active.url || active.path;
     if (!source) return;
-
     extractVideoPoster(source, { position: 0.1, width: 640, quality: 0.75 })
       .then((poster) => {
         if (!poster) return;
-        updateFileAfterLoad({ ...active, posterDataUrl: poster });
+        projectState.updateFileAfterLoad({ ...active, posterDataUrl: poster });
         markAsUnsaved();
-        console.log(`🖼️ Backfilled poster for "${active.name}"`);
       })
-      .catch((err) => {
-        console.warn('Poster backfill failed:', err);
-      });
-  }, [importedFiles, activeFileId, updateFileAfterLoad, markAsUnsaved]);
+      .catch((err) => console.warn('Poster backfill failed:', err));
+  }, [importedFiles, activeFileId, projectState, markAsUnsaved]);
 
-  /**
-   * Import a subtitle/lyrics file (.srt / .vtt / .lrc / .ass) into the active
-   * track. Places clips at their declared times, cascading around any existing
-   * clips to avoid loss.
-   */
   const importSubtitleFile = useCallback(
     async (
       file: File,
@@ -232,25 +196,12 @@ export function useProjectEditor(
       try {
         const content = await file.text();
         const parsed = parseSubtitleFile(file.name, content);
-
         if (parsed.clips.length === 0) {
-          alert(
-            `No usable clips were found in "${file.name}".` +
-              (parsed.warnings.length
-                ? `\n\nWarnings:\n${parsed.warnings.join('\n')}`
-                : ''),
-          );
+          alert(`No usable clips were found in "${file.name}".`);
           return null;
         }
-
         const { added, shifted } = importClips(parsed.clips, options);
         markAsUnsaved();
-
-        console.log(
-          `📥 Imported ${added} clips from ${file.name}` +
-            (shifted ? ` (shifted ${shifted} to avoid overlap)` : ''),
-        );
-
         return {
           format: parsed.format,
           added,
@@ -259,11 +210,7 @@ export function useProjectEditor(
         };
       } catch (err) {
         console.error('Failed to import subtitle file:', err);
-        alert(
-          `Failed to import "${file.name}": ${
-            err instanceof Error ? err.message : 'Unknown error'
-          }`,
-        );
+        alert(`Failed to import "${file.name}"`);
         return null;
       }
     },
@@ -276,19 +223,12 @@ export function useProjectEditor(
       const mediaFiles: File[] = [];
 
       for (const f of files) {
-        if (isSubtitleFileName(f.name)) {
-          subtitleFiles.push(f);
-        } else if (
-          f.type.startsWith('audio/') ||
-          f.type.startsWith('video/')
-        ) {
+        if (isSubtitleFileName(f.name)) subtitleFiles.push(f);
+        else if (f.type.startsWith('audio/') || f.type.startsWith('video/'))
           mediaFiles.push(f);
-        }
       }
 
-      for (const sf of subtitleFiles) {
-        await importSubtitleFile(sf);
-      }
+      for (const sf of subtitleFiles) await importSubtitleFile(sf);
 
       if (mediaFiles.length > 0) {
         const newFiles: ImportedMediaFile[] = mediaFiles.map((file) => ({
@@ -306,8 +246,7 @@ export function useProjectEditor(
 
         setImportedFiles((prev) => {
           const existingNames = new Set(prev.map((f) => f.name));
-          const trulyNew = newFiles.filter((f) => !existingNames.has(f.name));
-          return [...prev, ...trulyNew];
+          return [...prev, ...newFiles.filter((f) => !existingNames.has(f.name))];
         });
         markAsUnsaved();
       }
@@ -323,11 +262,8 @@ export function useProjectEditor(
       startTime: now,
       endTime: now + 2,
     };
-    if (activeLeftPanelTab === 'subtitles') {
-      setSubtitles((prev) => [...prev, newItem]);
-    } else {
-      setLyrics((prev) => [...prev, newItem]);
-    }
+    if (activeLeftPanelTab === 'subtitles') setSubtitles((p) => [...p, newItem]);
+    else setLyrics((p) => [...p, newItem]);
     markAsUnsaved();
   }, [currentTime, activeLeftPanelTab, setSubtitles, setLyrics, markAsUnsaved]);
 
@@ -341,22 +277,14 @@ export function useProjectEditor(
       let x = 0,
         y = 0;
       if ('clientX' in e) {
-        const mouseEvent = e as React.MouseEvent;
-        x = mouseEvent.clientX;
-        y = mouseEvent.clientY;
+        x = (e as React.MouseEvent).clientX;
+        y = (e as React.MouseEvent).clientY;
       } else if (targetElement) {
         const rect = targetElement.getBoundingClientRect();
         x = rect.left;
         y = rect.bottom;
       }
-      setContextMenu({
-        visible: true,
-        x,
-        y,
-        type: 'file',
-        data: null,
-        file,
-      });
+      setContextMenu({ visible: true, x, y, type: 'file', data: null, file });
     },
     [],
   );
@@ -376,43 +304,36 @@ export function useProjectEditor(
           break;
         case 'remove': {
           if (activeFileId === file.id) cleanupMedia();
-          setImportedFiles((prev) => prev.filter((f) => f.id !== file.id));
-          if (activeFileId === file.id) setActiveFileId(null);
+          setImportedFiles((p) => p.filter((f) => f.id !== file.id));
+          if (activeFileId === file.id) {
+            const remaining = importedFiles.filter((f) => f.id !== file.id);
+            switchActiveFile(remaining[0]?.id ?? '');
+          }
           markAsUnsaved();
           break;
         }
       }
-      setContextMenu((prev) => ({ ...prev, visible: false }));
+      setContextMenu((p) => ({ ...p, visible: false }));
     },
     [
       contextMenu,
       onFileActivate,
       cleanupMedia,
       setImportedFiles,
-      setActiveFileId,
       markAsUnsaved,
       activeFileId,
+      importedFiles,
+      switchActiveFile,
     ],
   );
 
-  const handleExport = useCallback(() => {
-    setIsExportModalOpen(true);
-  }, []);
-
-  const handleSaveProject = useCallback(() => {
-    void onSaveProject?.();
-  }, [onSaveProject]);
-
-  const handleSaveProjectAs = useCallback(() => {
-    void onSaveProjectAs?.();
-  }, [onSaveProjectAs]);
+  const handleExport = useCallback(() => setIsExportModalOpen(true), []);
+  const handleSaveProject = useCallback(() => void onSaveProject?.(), [onSaveProject]);
+  const handleSaveProjectAs = useCallback(() => void onSaveProjectAs?.(), [onSaveProjectAs]);
 
   const handleClearTimelineAll = useCallback(() => {
-    if (activeLeftPanelTab === 'subtitles') {
-      setSubtitles([]);
-    } else {
-      setLyrics([]);
-    }
+    if (activeLeftPanelTab === 'subtitles') setSubtitles([]);
+    else setLyrics([]);
     markAsUnsaved();
   }, [activeLeftPanelTab, setSubtitles, setLyrics, markAsUnsaved]);
 
@@ -428,6 +349,8 @@ export function useProjectEditor(
       .padStart(3, '0')}`;
   }, []);
 
+  void importFiles;
+
   return {
     projectState,
     mediaPlayback,
@@ -435,31 +358,19 @@ export function useProjectEditor(
     contextMenu,
     setContextMenu,
     layout,
-    isPreferencesModalOpen,
-    setIsPreferencesModalOpen,
-    isAboutModalOpen,
-    setIsAboutModalOpen,
-    isHelpModalOpen,
-    setIsHelpModalOpen,
-    isExportModalOpen,
-    setIsExportModalOpen,
-    isFileInfoModalOpen,
-    setIsFileInfoModalOpen,
-    isStageSettingsModalOpen,
-    setIsStageSettingsModalOpen,
-    selectedFileInfo,
-    setSelectedFileInfo,
-    activePreferenceSection,
-    setActivePreferenceSection,
-    activeHelpSection,
-    setActiveHelpSection,
-    openAccordion,
-    toggleAccordion,
+    isPreferencesModalOpen, setIsPreferencesModalOpen,
+    isAboutModalOpen, setIsAboutModalOpen,
+    isHelpModalOpen, setIsHelpModalOpen,
+    isExportModalOpen, setIsExportModalOpen,
+    isFileInfoModalOpen, setIsFileInfoModalOpen,
+    isStageSettingsModalOpen, setIsStageSettingsModalOpen,
+    selectedFileInfo, setSelectedFileInfo,
+    activePreferenceSection, setActivePreferenceSection,
+    activeHelpSection, setActiveHelpSection,
+    openAccordion, toggleAccordion,
     markAsUnsaved,
-    toggleVerticalLayout,
-    toggleMaximizeVideo,
-    toggleLeftPanelFilled,
-    toggleLeftPanelTopRowFilled,
+    toggleVerticalLayout, toggleMaximizeVideo,
+    toggleLeftPanelFilled, toggleLeftPanelTopRowFilled,
     onFileActivate,
     handleNewClip,
     handleFilesDropped,

@@ -19,7 +19,13 @@ import {
   ChevronRight,
   Upload,
 } from 'lucide-react';
-import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useMemo,
+  useState,
+  useCallback,
+} from 'react';
 import { LyricLine, TextStyle, AppSettings } from '../../types/types';
 import { TemplatesContent } from '../modals/TemplatesContent';
 import { Dropdown } from '../ui/Dropdown';
@@ -31,8 +37,8 @@ import {
   DEFAULT_CONFIG,
 } from '../../utils/timingUtils';
 import type { ImportSubtitleResult } from '../../utils/subtitleImport';
+import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 
-// --- Props ---
 interface LyricsSubtitlesPanelProps {
   activeLeftPanelTab: 'subtitles' | 'lyrics';
   setActiveLeftPanelTab: (tab: 'subtitles' | 'lyrics') => void;
@@ -60,8 +66,9 @@ interface LyricsSubtitlesPanelProps {
   handleDeleteLyric: (id: string) => void;
   handleMergeSubtitles: () => void;
   handleSplitSubtitle: () => void;
-  handleBatchAddLyrics?: (lyricLines: Omit<LyricLine, 'id'>[]) => void;
-  handleBatchAddSubtitles?: (subtitleLines: Omit<LyricLine, 'id'>[]) => void;
+
+  handleBatchAddLyrics: (lyricLines: Omit<LyricLine, 'id'>[]) => void;
+  handleBatchAddSubtitles: (subtitleLines: Omit<LyricLine, 'id'>[]) => void;
 
   formatTime: (sec: number) => string;
 
@@ -91,18 +98,12 @@ interface LyricsSubtitlesPanelProps {
 
   settings?: AppSettings;
 
-  /**
-   * Import a subtitle/lyrics file into the active track.
-   * Returns metadata about the import (format, clip counts, warnings),
-   * or `null` if the file could not be parsed.
-   */
   onImportSubtitleFile?: (
     file: File,
     options?: { replace?: boolean },
   ) => Promise<ImportSubtitleResult | null>;
 }
 
-// --- Sub-component: TabNav ---
 const TabNav = ({
   tabs,
   active,
@@ -128,7 +129,6 @@ const TabNav = ({
   </div>
 );
 
-// --- Sub-component: TextStyleControls ---
 export const TextStyleControls: React.FC<{
   label: string;
   style: TextStyle;
@@ -358,7 +358,6 @@ export const TextStyleControls: React.FC<{
   );
 };
 
-// --- Main Component ---
 export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   activeLeftPanelTab,
   setActiveLeftPanelTab,
@@ -396,6 +395,9 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   settings,
   onImportSubtitleFile,
 }) => {
+  const { clipboardClip, copyClipToClipboard, pasteClipboardAt } =
+    useProjectEditor();
+
   const lyricsListRef = useRef<HTMLDivElement>(null);
   const subtitlesListRef = useRef<HTMLDivElement>(null);
   const prevLyricsCountRef = useRef(lyrics.length);
@@ -441,8 +443,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     id: string;
     position: 'above' | 'below';
   } | null>(null);
-
-  const [copiedClip, setCopiedClip] = useState<LyricLine | null>(null);
 
   const sortedSubtitles = useMemo(
     () => [...subtitles].sort((a, b) => a.startTime - b.startTime),
@@ -491,7 +491,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     setSelectedLyricIds(new Set());
   };
 
-  // Set default text for newly added clips
   useEffect(() => {
     if (subtitles.length > prevSubtitlesCountRef.current) {
       const newClips = subtitles.slice(prevSubtitlesCountRef.current);
@@ -516,7 +515,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     prevLyricsCountRef.current = lyrics.length;
   }, [lyrics, handleLyricChange]);
 
-  // Active clip tracking
   useEffect(() => {
     if (!activeList.length) {
       setActiveClipId(null);
@@ -528,7 +526,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     setActiveClipId(activeClip ? activeClip.id : null);
   }, [currentTime, activeList]);
 
-  // Scroll to active clip
   useEffect(() => {
     if (!activeClipId) return;
     if (lastScrolledClipIdRef.current === activeClipId) return;
@@ -558,23 +555,72 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     }
   }, [activeClipId, listRef]);
 
-  // Keyboard shortcuts (t, Ctrl+C, Ctrl+V)
+  // CLIPBOARD KEYBOARD SHORTCUTS
+  const copiedClipRef = useRef<LyricLine | null>(null);
+  useEffect(() => {
+    copiedClipRef.current = clipboardClip;
+  }, [clipboardClip]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
-      if (activeSubTab !== 'edit') return;
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target && target.isContentEditable);
 
-      if (
-        e.key.toLowerCase() === 't' &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey
-      ) {
+      const mod = e.ctrlKey || e.metaKey;
+
+      // Copy
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c') {
+        if (isEditable) return;
+        const selectedSet =
+          activeLeftPanelTab === 'subtitles'
+            ? selectedSubtitleIds
+            : selectedLyricIds;
+        if (selectedSet.size !== 1) {
+          console.log('[clipboard] copy skipped — need exactly 1 selected clip');
+          return;
+        }
+        const id = Array.from(selectedSet)[0];
+        const list =
+          activeLeftPanelTab === 'subtitles' ? sortedSubtitles : sortedLyrics;
+        const clip = list.find((c) => c.id === id);
+        if (!clip) return;
+
         e.preventDefault();
+        e.stopPropagation();
+        copyClipToClipboard(clip.id);
+        console.log('[clipboard] copied clip:', clip.text);
+        return;
+      }
+
+      // Paste
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+        if (isEditable) return;
+        const clip = copiedClipRef.current;
+        if (!clip) {
+          console.log('[clipboard] paste skipped — nothing copied');
+          return;
+        }
+        if (mediaDuration <= 0) {
+          console.log('[clipboard] paste skipped — no media loaded');
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        pasteClipboardAt(currentTime);
+        console.log('[clipboard] pasted clip at', currentTime.toFixed(2));
+        return;
+      }
+
+      // Focus textarea on 't'
+      if (
+        !mod &&
+        !e.altKey &&
+        e.key.toLowerCase() === 't' &&
+        !isEditable
+      ) {
         const selectedSet =
           activeLeftPanelTab === 'subtitles'
             ? selectedSubtitleIds
@@ -582,77 +628,31 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
         const firstSelectedId = Array.from(selectedSet)[0];
         const textarea = textareaRefs.current.get(firstSelectedId);
         if (textarea) {
+          e.preventDefault();
           textarea.focus();
-          const length = textarea.value.length;
-          textarea.setSelectionRange(length, length);
-        }
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        if (
-          activeLeftPanelTab === 'subtitles' &&
-          selectedSubtitleIds.size === 1
-        ) {
-          e.preventDefault();
-          const id = Array.from(selectedSubtitleIds)[0];
-          const clip = sortedSubtitles.find((c) => c.id === id);
-          if (clip) setCopiedClip({ ...clip });
-        } else if (
-          activeLeftPanelTab === 'lyrics' &&
-          selectedLyricIds.size === 1
-        ) {
-          e.preventDefault();
-          const id = Array.from(selectedLyricIds)[0];
-          const clip = sortedLyrics.find((c) => c.id === id);
-          if (clip) setCopiedClip({ ...clip });
-        }
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        if (copiedClip && mediaDuration > 0) {
-          e.preventDefault();
-          const duration = copiedClip.endTime - copiedClip.startTime;
-          const newStart = Math.min(currentTime, mediaDuration - 0.001);
-          const newEnd = Math.min(newStart + duration, mediaDuration);
-          const newClip = {
-            text: copiedClip.text,
-            startTime: newStart,
-            endTime: newEnd,
-          };
-          if (
-            activeLeftPanelTab === 'subtitles' &&
-            handleBatchAddSubtitles
-          ) {
-            handleBatchAddSubtitles([newClip]);
-          } else if (
-            activeLeftPanelTab === 'lyrics' &&
-            handleBatchAddLyrics
-          ) {
-            handleBatchAddLyrics([newClip]);
-          }
+          const len = textarea.value.length;
+          textarea.setSelectionRange(len, len);
         }
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [
-    selectedSubtitleIds,
-    selectedLyricIds,
     activeSubTab,
     activeLeftPanelTab,
-    copiedClip,
+    selectedSubtitleIds,
+    selectedLyricIds,
     sortedSubtitles,
     sortedLyrics,
     currentTime,
     mediaDuration,
-    handleBatchAddSubtitles,
-    handleBatchAddLyrics,
+    copyClipToClipboard,
+    pasteClipboardAt,
   ]);
 
-  // Preview timing estimation
   useEffect(() => {
     if (!lyricsPasteText.trim() && !subtitlesPasteText.trim()) {
       setEstimatedClips([]);
@@ -710,7 +710,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   ]);
 
   const handleAutoSyncLyrics = useCallback(() => {
-    if (!lyricsPasteText.trim() || !handleBatchAddLyrics) return;
+    if (!lyricsPasteText.trim()) return;
 
     const lines = lyricsPasteText
       .split('\n')
@@ -741,7 +741,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   }, [lyricsPasteText, mediaDuration, currentTime, handleBatchAddLyrics, settings]);
 
   const handleAutoSyncSubtitles = useCallback(() => {
-    if (!subtitlesPasteText.trim() || !handleBatchAddSubtitles) return;
+    if (!subtitlesPasteText.trim()) return;
 
     const lines = subtitlesPasteText
       .split('\n')
@@ -781,7 +781,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     settings,
   ]);
 
-  // Auto-scroll for new clips
   useEffect(() => {
     if (lyrics.length > prevLyricsCountRef.current) {
       const lyricsList = lyricsListRef.current;
@@ -814,7 +813,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     }
   }, [subtitles.length]);
 
-  // Drag & drop
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -1009,7 +1007,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
   return (
     <div className="bg-app-surface p-4 rounded-lg border border-app-border h-full flex flex-col overflow-hidden">
-      {/* Header Section */}
       <div className="flex-shrink-0 space-y-3 pb-3">
         <div className="flex justify-between">
           <h3 className="text-xl font-semibold flex items-center">
@@ -1079,12 +1076,10 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
         />
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 min-h-0 flex flex-col">
         {activeSubTab === 'edit' &&
           (activeLeftPanelTab === 'subtitles' ? (
             <div className="flex flex-col h-full overflow-hidden">
-              {/* Hidden file input for .srt/.vtt/.lrc/.ass import */}
               <input
                 ref={subtitleFileInputRef}
                 type="file"
@@ -1130,7 +1125,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                   )}
                 </div>
 
-                {/* Import from file */}
                 {onImportSubtitleFile && (
                   <div className="px-0.5">
                     <button
@@ -1204,9 +1198,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
                 <button
                   onClick={handleAutoSyncSubtitles}
-                  disabled={!subtitlesPasteText.trim() || !handleBatchAddSubtitles}
+                  disabled={!subtitlesPasteText.trim()}
                   className="w-full px-4 py-2 bg-success text-white rounded-md hover:bg-opacity-80 flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!handleBatchAddSubtitles ? 'Batch add function not available' : ''}
                 >
                   <Zap className="mr-2" size={18} /> Auto Generate Subtitles
                 </button>
@@ -1262,7 +1255,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
             </div>
           ) : (
             <div className="flex flex-col h-full overflow-hidden">
-              {/* Hidden file input for .srt/.vtt/.lrc/.ass import */}
               <input
                 ref={lyricsFileInputRef}
                 type="file"
@@ -1307,7 +1299,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
                   )}
                 </div>
 
-                {/* Import from file */}
                 {onImportSubtitleFile && (
                   <div className="px-0.5">
                     <button
@@ -1355,18 +1346,15 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
 
                 <button
                   onClick={handleAutoSyncLyrics}
-                  disabled={!lyricsPasteText.trim() || !handleBatchAddLyrics}
+                  disabled={!lyricsPasteText.trim()}
                   className="w-full px-4 py-2 bg-success text-white rounded-md hover:bg-opacity-80 flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!handleBatchAddLyrics ? 'Batch add function not available' : ''}
                 >
                   <Zap className="mr-2" size={18} /> Auto-Sync Lyrics
                 </button>
 
                 <div className="grid grid-cols-3 gap-2">
                   <button
-                    onClick={() => {
-                      if (handleAddLyric) handleAddLyric();
-                    }}
+                    onClick={() => handleAddLyric()}
                     className="px-2 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm"
                   >
                     <Plus className="mr-1" size={14} /> Add
@@ -1443,3 +1431,4 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     </div>
   );
 };
+

@@ -68,12 +68,9 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
     (type: ResizeType, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-
       const container = containerRef.current;
       if (!container) return;
-
       const rect = container.getBoundingClientRect();
-
       setResizeState({
         type,
         startX: e.clientX,
@@ -84,11 +81,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
         containerWidth: rect.width,
         containerHeight: rect.height,
       });
-
       document.body.style.cursor =
-        type === 'top-split' || type === 'left-width'
-          ? 'col-resize'
-          : 'row-resize';
+        type === 'top-split' || type === 'left-width' ? 'col-resize' : 'row-resize';
       document.body.style.userSelect = 'none';
     },
     [sizes, containerRef],
@@ -97,54 +91,35 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
       if (!resizeState) return;
-
       const {
-        type,
-        startX,
-        startY,
-        initialLeftWidth,
-        initialTopSplit,
-        initialBottomHeight,
+        type, startX, startY,
+        initialLeftWidth, initialTopSplit, initialBottomHeight,
         containerWidth,
-        containerHeight,
       } = resizeState;
-
       const deltaX = e.clientX - startX;
       const deltaY = e.clientY - startY;
-
       const updates: Partial<VerticalLayoutSizes> = {};
-
       switch (type) {
         case 'left-width': {
           const deltaPercent = (deltaX / containerWidth) * 100;
-          updates.leftWidth = Math.min(
-            75,
-            Math.max(50, initialLeftWidth + deltaPercent),
-          );
+          updates.leftWidth = Math.min(75, Math.max(50, initialLeftWidth + deltaPercent));
           break;
         }
         case 'top-split': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (deltaX / leftPanelRect.width) * 100;
-          updates.topSplit = Math.min(
-            60,
-            Math.max(25, initialTopSplit + deltaPercent),
-          );
+          updates.topSplit = Math.min(60, Math.max(25, initialTopSplit + deltaPercent));
           break;
         }
         case 'bottom-height': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (-deltaY / leftPanelRect.height) * 100;
-          updates.bottomHeight = Math.min(
-            60,
-            Math.max(20, initialBottomHeight + deltaPercent),
-          );
+          updates.bottomHeight = Math.min(60, Math.max(20, initialBottomHeight + deltaPercent));
           break;
         }
       }
-
       if (Object.keys(updates).length > 0) onResize(updates);
     },
     [resizeState, onResize],
@@ -175,9 +150,7 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       e.preventDefault();
       const fileId = e.dataTransfer.getData('text/plain');
       const fileToLoad = context.importedFiles.find((f) => f.id === fileId);
-      if (fileToLoad) {
-        await context.onFileActivate(fileToLoad);
-      }
+      if (fileToLoad) await context.onFileActivate(fileToLoad);
     },
     [context.importedFiles, context.onFileActivate],
   );
@@ -246,8 +219,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
               setLyricTextStyle={context.setLyricTextStyle}
               subtitleTextStyle={context.subtitleTextStyle}
               setSubtitleTextStyle={context.setSubtitleTextStyle}
-              subtitleLanguage="en-US"
-              setSubtitleLanguage={() => {}}
+              subtitleLanguage={context.subtitleLanguage}
+              setSubtitleLanguage={context.setSubtitleLanguage}
               onOpenStageSettingsModal={onOpenStageSettingsModal}
               handleBatchAddLyrics={context.handleBatchAddLyrics}
               handleBatchAddSubtitles={context.handleBatchAddSubtitles}
@@ -284,18 +257,15 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
             timelineData={context.timelineData}
             updateTimelineData={context.updateTimelineData}
             deleteTimelineItem={context.deleteTimelineItem}
-            selectedIds={context.selectedSubtitleIds}
-            toggleSelection={context.toggleSubtitleSelection}
+            selectedIds={context.selectedIds}
+            toggleSelection={context.toggleTimelineSelection}
             undo={context.undo}
             redo={context.redo}
             canUndo={context.canUndo}
             canRedo={context.canRedo}
             snapToGrid={context.settings.snapToGrid}
             toggleSnapToGrid={() =>
-              context.handleSettingChange(
-                'snapToGrid',
-                !context.settings.snapToGrid,
-              )
+              context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
             }
             addMarker={context.addMarker}
             markers={context.markers}
@@ -305,6 +275,8 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
             onClearTimelineAll={context.handleClearTimelineAll}
             isVuOverlayEnabled={context.isVuOverlayEnabled}
             onToggleVuOverlay={context.toggleVuOverlay}
+            splitTimelineItem={context.splitTimelineItem}
+            mergeTimelineItems={context.mergeTimelineItems}
           />
         </div>
       </div>

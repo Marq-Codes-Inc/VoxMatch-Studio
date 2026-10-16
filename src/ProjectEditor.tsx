@@ -155,6 +155,8 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     lyrics,
     subtitles,
     selectedSubtitleIds,
+    selectedLyricIds,
+    selectedIds,
     importedFiles,
     activeFileId,
     loadingFileId,
@@ -169,12 +171,16 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     timelineData,
     canUndo,
     canRedo,
+    subtitleLanguage,
+    clipboardClip,
+    tracks,
     setActiveLeftPanelTab,
     setActiveSubTab,
     setZoom,
     setStageStyle,
     setLyricTextStyle,
     setSubtitleTextStyle,
+    setSubtitleLanguage,
     handleLyricChange,
     handleSubtitleChange,
     handleAddLyric,
@@ -184,6 +190,8 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     handleMergeSubtitles,
     handleSplitSubtitle,
     toggleSubtitleSelection,
+    toggleLyricSelection,
+    toggleTimelineSelection,
     handleBatchAddLyrics,
     handleBatchAddSubtitles,
     undo,
@@ -194,6 +202,12 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     addMarker,
     addTimelineItem,
     duplicateTimelineItem,
+    splitTimelineItem,
+    mergeTimelineItems,
+    pushHistory,
+    copyClipToClipboard,
+    pasteClipboardAt,
+    switchActiveFile,
   } = projectState;
 
   const [horizontalSizes, setHorizontalSizes] = useState({
@@ -340,164 +354,97 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 
   const contextValue: ProjectEditorContextValue = useMemo(
     () => ({
-      isPlaying,
-      currentTime,
-      volume,
-      activeLeftPanelTab,
-      activeSubTab,
-      lyrics,
-      subtitles,
-      selectedSubtitleIds,
-      mediaDuration,
-      isMediaLoaded,
-      importedFiles,
-      activeFileId,
-      mediaUrl,
-      loadingFileId,
-      zoom,
-      markers,
-      currentSubtitleText,
-      settings,
-      stageStyle,
-      lyricTextStyle,
-      subtitleTextStyle,
-      canUndo,
-      canRedo,
-      activeFile,
-      timelineData,
+      isPlaying, currentTime, volume, mediaDuration, isMediaLoaded, mediaUrl,
+      mediaElementRef, audioElementRef, analyserRef,
+      activeLeftPanelTab, activeSubTab, layout,
+      tracks, lyrics, subtitles, timelineData, markers, zoom,
+      settings, stageStyle, lyricTextStyle, subtitleTextStyle,
+      currentSubtitleText, subtitleLanguage,
+      selectedSubtitleIds, selectedLyricIds, selectedIds, clipboardClip,
+      importedFiles, activeFileId, activeFile, loadingFileId,
+      canUndo, canRedo, undo, redo,
       setIsPlaying: mediaPlayback.setIsPlaying,
-      setVolume,
-      setActiveLeftPanelTab,
-      setActiveSubTab,
-      setZoom: wrappedSetZoom,
-      handleSeek,
-      togglePlayPause,
-      handleLyricChange,
-      handleSubtitleChange,
+      setVolume, handleSeek, togglePlayPause,
+      setActiveLeftPanelTab, setActiveSubTab, setZoom: wrappedSetZoom,
+      handleLyricChange, handleSubtitleChange,
       handleAddLyric: wrappedHandleAddLyric,
       handleAddSubtitle: wrappedHandleAddSubtitle,
-      handleDeleteLyric,
-      handleDeleteSubtitle,
-      handleMergeSubtitles,
-      handleSplitSubtitle,
-      toggleSubtitleSelection,
-      handleBatchAddLyrics,
-      handleBatchAddSubtitles,
-      undo,
-      redo,
+      handleDeleteLyric, handleDeleteSubtitle,
+      handleMergeSubtitles, handleSplitSubtitle,
+      handleBatchAddLyrics, handleBatchAddSubtitles,
+      toggleSubtitleSelection, toggleLyricSelection, toggleTimelineSelection,
       handleSettingChange,
-      setStageStyle: wrappedSetStageStyle,
-      setLyricTextStyle: wrappedSetLyricTextStyle,
-      setSubtitleTextStyle: wrappedSetSubtitleTextStyle,
-      onFileActivate: wrappedOnFileActivate,
-      handleOpenFile: handleOpenFileLocal,
-      handleFilesDropped,
-      handleClearTimelineAll,
+      setStageStyle: wrappedSetStageStyle as unknown as React.Dispatch<
+        React.SetStateAction<StageStyle>
+      >,
+      setLyricTextStyle: wrappedSetLyricTextStyle as unknown as React.Dispatch<
+        React.SetStateAction<TextStyle>
+      >,
+      setSubtitleTextStyle:
+        wrappedSetSubtitleTextStyle as unknown as React.Dispatch<
+          React.SetStateAction<TextStyle>
+        >,
+      setSubtitleLanguage,
       updateTimelineData: wrappedUpdateTimelineData,
       deleteTimelineItem: wrappedDeleteTimelineItem,
+      addTimelineItem, duplicateTimelineItem,
+      splitTimelineItem, mergeTimelineItems,
       addMarker: wrappedAddMarker,
-      addTimelineItem,
-      duplicateTimelineItem,
-      handleNewClip,
-      formatTime,
-      markAsUnsaved,
-      mediaElementRef,
-      audioElementRef,
-      analyserRef,
-      isVuOverlayEnabled,
-      toggleVuOverlay,
+      copyClipToClipboard, pasteClipboardAt,
+      onFileActivate: wrappedOnFileActivate,
+      handleOpenFile: handleOpenFileLocal,
+      handleFilesDropped, handleClearTimelineAll, handleNewClip,
+      switchActiveFile,
+      formatTime, markAsUnsaved, pushHistory,
+      isVuOverlayEnabled, toggleVuOverlay,
       importSubtitleFile: editor.importSubtitleFile,
     }),
     [
-      isPlaying,
-      currentTime,
-      volume,
-      activeLeftPanelTab,
-      activeSubTab,
-      lyrics,
-      subtitles,
-      selectedSubtitleIds,
-      mediaDuration,
-      isMediaLoaded,
-      importedFiles,
-      activeFileId,
-      mediaUrl,
-      loadingFileId,
-      zoom,
-      markers,
-      currentSubtitleText,
-      settings,
-      stageStyle,
-      lyricTextStyle,
-      subtitleTextStyle,
-      canUndo,
-      canRedo,
-      activeFile,
-      timelineData,
-      mediaPlayback.setIsPlaying,
-      setVolume,
-      setActiveLeftPanelTab,
-      setActiveSubTab,
-      wrappedSetZoom,
-      handleSeek,
-      togglePlayPause,
-      handleLyricChange,
-      handleSubtitleChange,
-      wrappedHandleAddLyric,
-      wrappedHandleAddSubtitle,
-      handleDeleteLyric,
-      handleDeleteSubtitle,
-      handleMergeSubtitles,
-      handleSplitSubtitle,
-      toggleSubtitleSelection,
-      handleBatchAddLyrics,
-      handleBatchAddSubtitles,
-      undo,
-      redo,
+      isPlaying, currentTime, volume, mediaDuration, isMediaLoaded, mediaUrl,
+      mediaElementRef, audioElementRef, analyserRef,
+      activeLeftPanelTab, activeSubTab, layout,
+      tracks, lyrics, subtitles, timelineData, markers, zoom,
+      settings, stageStyle, lyricTextStyle, subtitleTextStyle,
+      currentSubtitleText, subtitleLanguage,
+      selectedSubtitleIds, selectedLyricIds, selectedIds, clipboardClip,
+      importedFiles, activeFileId, activeFile, loadingFileId,
+      canUndo, canRedo, undo, redo,
+      mediaPlayback.setIsPlaying, setVolume, handleSeek, togglePlayPause,
+      setActiveLeftPanelTab, setActiveSubTab, wrappedSetZoom,
+      handleLyricChange, handleSubtitleChange,
+      wrappedHandleAddLyric, wrappedHandleAddSubtitle,
+      handleDeleteLyric, handleDeleteSubtitle,
+      handleMergeSubtitles, handleSplitSubtitle,
+      handleBatchAddLyrics, handleBatchAddSubtitles,
+      toggleSubtitleSelection, toggleLyricSelection, toggleTimelineSelection,
       handleSettingChange,
-      wrappedSetStageStyle,
-      wrappedSetLyricTextStyle,
-      wrappedSetSubtitleTextStyle,
-      wrappedOnFileActivate,
-      handleOpenFileLocal,
-      handleFilesDropped,
-      handleClearTimelineAll,
-      wrappedUpdateTimelineData,
-      wrappedDeleteTimelineItem,
+      wrappedSetStageStyle, wrappedSetLyricTextStyle, wrappedSetSubtitleTextStyle,
+      setSubtitleLanguage,
+      wrappedUpdateTimelineData, wrappedDeleteTimelineItem,
+      addTimelineItem, duplicateTimelineItem,
+      splitTimelineItem, mergeTimelineItems,
       wrappedAddMarker,
-      addTimelineItem,
-      duplicateTimelineItem,
-      handleNewClip,
-      formatTime,
-      markAsUnsaved,
-      mediaElementRef,
-      audioElementRef,
-      analyserRef,
-      isVuOverlayEnabled,
-      toggleVuOverlay,
+      copyClipToClipboard, pasteClipboardAt,
+      wrappedOnFileActivate, handleOpenFileLocal, handleFilesDropped,
+      handleClearTimelineAll, handleNewClip, switchActiveFile,
+      formatTime, markAsUnsaved, pushHistory,
+      isVuOverlayEnabled, toggleVuOverlay,
       editor.importSubtitleFile,
     ],
   );
 
+  // Sync
   const contentSignature = useMemo(
     () =>
       JSON.stringify({
-        lyrics,
-        subtitles,
-        mediaFiles: importedFiles.map((f) => ({
-          id: f.id,
-          name: f.name,
-          path: f.path,
-          loaded: f.loaded,
-          duration: f.duration,
-        })),
+        name: project.name,
+        tracks,
         activeFileId,
-        markers,
-        zoom,
+        mediaFiles: importedFiles.map((f) => ({
+          id: f.id, name: f.name, path: f.path, loaded: f.loaded,
+          duration: f.duration, posterDataUrl: f.posterDataUrl ?? null,
+        })),
         settings,
-        stageStyle,
-        lyricTextStyle,
-        subtitleTextStyle,
         layout: {
           leftWidth: horizontalSizes.leftWidth,
           videoHeight: horizontalSizes.videoHeight,
@@ -506,21 +453,8 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
         },
         isSaved: isProjectSaved,
       }),
-    [
-      lyrics,
-      subtitles,
-      importedFiles,
-      activeFileId,
-      markers,
-      zoom,
-      settings,
-      stageStyle,
-      lyricTextStyle,
-      subtitleTextStyle,
-      horizontalSizes,
-      verticalSizes,
-      isProjectSaved,
-    ],
+    [project.name, tracks, activeFileId, importedFiles, settings,
+     horizontalSizes, verticalSizes, isProjectSaved],
   );
 
   const lastSignatureRef = useRef<string | null>(null);
@@ -531,6 +465,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 
     const updatedProject: VoxMatchProject = {
       ...project,
+      name: project.name,
       layout: {
         ...project.layout,
         panels: {
@@ -541,72 +476,29 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           leftPanelBottomHeight: verticalSizes.bottomHeight,
         },
       },
-      settings,
-      lyrics,
-      subtitles,
-      mediaFiles: importedFiles,
-      activeFileId,
-      stageStyle,
-      lyricTextStyle,
-      subtitleTextStyle,
-      markers,
-      zoom,
+      tracks, activeFileId, mediaFiles: importedFiles, settings,
       isSaved: isProjectSaved,
     };
     onProjectUpdate(updatedProject);
-  }, [
-    contentSignature,
-    project,
-    onProjectUpdate,
-    settings,
-    lyrics,
-    subtitles,
-    importedFiles,
-    activeFileId,
-    stageStyle,
-    lyricTextStyle,
-    subtitleTextStyle,
-    markers,
-    zoom,
-    horizontalSizes,
-    verticalSizes,
-    isProjectSaved,
-  ]);
+  }, [contentSignature, project, onProjectUpdate, tracks, activeFileId,
+     importedFiles, settings, horizontalSizes, verticalSizes, isProjectSaved]);
 
   useEffect(() => {
     onThemeChange(settings.theme);
     document.documentElement.setAttribute('data-theme', settings.theme);
-    document.documentElement.style.setProperty(
-      '--primary',
-      settings.primaryColor,
-    );
-    document.documentElement.style.setProperty(
-      '--primary-hover',
-      `${settings.primaryColor}E6`,
-    );
+    document.documentElement.style.setProperty('--primary', settings.primaryColor);
+    document.documentElement.style.setProperty('--primary-hover', `${settings.primaryColor}E6`);
   }, [settings, onThemeChange]);
 
   useKeyboardShortcuts(
     [
-      {
-        ...SHORTCUTS.PLAY_PAUSE,
-        handler: () => !isModalOpen && togglePlayPause(),
-      },
+      { ...SHORTCUTS.PLAY_PAUSE, handler: () => !isModalOpen && togglePlayPause() },
       { ...SHORTCUTS.UNDO, handler: () => !isModalOpen && canUndo && undo() },
       { ...SHORTCUTS.REDO, handler: () => !isModalOpen && canRedo && redo() },
-      {
-        ...SHORTCUTS.REDO_ALT,
-        handler: () => !isModalOpen && canRedo && redo(),
-      },
+      { ...SHORTCUTS.REDO_ALT, handler: () => !isModalOpen && canRedo && redo() },
       { ...SHORTCUTS.SAVE, handler: () => !isModalOpen && handleSaveProject() },
-      {
-        ...SHORTCUTS.SAVE_AS,
-        handler: () => !isModalOpen && handleSaveProjectAs(),
-      },
-      {
-        ...SHORTCUTS.NEW_CLIP,
-        handler: () => !isModalOpen && handleNewClip(),
-      },
+      { ...SHORTCUTS.SAVE_AS, handler: () => !isModalOpen && handleSaveProjectAs() },
+      { ...SHORTCUTS.NEW_CLIP, handler: () => !isModalOpen && handleNewClip() },
     ],
     { enabled: true },
   );
@@ -696,38 +588,41 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           )}
 
           <div
-            className="absolute z-10"
-            style={{
-              left: videoSlotRect.left,
-              top: videoSlotRect.top,
-              width: videoSlotRect.width,
-              height: videoSlotRect.height,
-              pointerEvents: 'auto',
-            }}
+            className="absolute z-10 pointer-events-none"
+            style={{ left: 0, top: 0, width: '100%', height: '100%' }}
           >
-            <VideoPreviewPanel
-              isVerticalLayout={layout.isVerticalLayout}
-              isPlaying={isPlaying}
-              togglePlayPause={togglePlayPause}
-              isMaximizedVideo={layout.isMaximizedVideo}
-              setIsMaximizedVideo={toggleMaximizeVideo}
-              mediaUrl={mediaUrl}
-              mediaElementRef={mediaElementRef}
-              currentTime={currentTime}
-              mediaDuration={mediaDuration}
-              activeFile={activeFile}
-              settings={settings}
-              currentSubtitleText={currentSubtitleText}
-              stageStyle={stageStyle}
-              lyricTextStyle={lyricTextStyle}
-              subtitleTextStyle={subtitleTextStyle}
-              overlayMode={
-                activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'
-              }
-              handleSeek={handleSeek}
-              videoAspect={videoAspect}
-              isMediaLoaded={isMediaLoaded}
-            />
+            <div
+              className="absolute"
+              style={{
+                left: videoSlotRect.left,
+                top: videoSlotRect.top,
+                width: videoSlotRect.width,
+                height: videoSlotRect.height,
+                pointerEvents: 'auto',
+              }}
+            >
+              <VideoPreviewPanel
+                isVerticalLayout={layout.isVerticalLayout}
+                isPlaying={isPlaying}
+                togglePlayPause={togglePlayPause}
+                isMaximizedVideo={layout.isMaximizedVideo}
+                setIsMaximizedVideo={toggleMaximizeVideo}
+                mediaUrl={mediaUrl}
+                mediaElementRef={mediaElementRef}
+                currentTime={currentTime}
+                mediaDuration={mediaDuration}
+                activeFile={activeFile}
+                settings={settings}
+                currentSubtitleText={currentSubtitleText}
+                stageStyle={stageStyle}
+                lyricTextStyle={lyricTextStyle}
+                subtitleTextStyle={subtitleTextStyle}
+                overlayMode={activeLeftPanelTab === 'lyrics' ? 'lyrics' : 'subtitles'}
+                handleSeek={handleSeek}
+                videoAspect={videoAspect}
+                isMediaLoaded={isMediaLoaded}
+              />
+            </div>
           </div>
         </main>
 
@@ -737,25 +632,15 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           activeFileId={activeFileId}
         />
 
-        <Modal
-          isOpen={isAboutModalOpen}
-          onClose={() => setIsAboutModalOpen(false)}
-          title="About VoxMatch Studio"
-        >
+        <Modal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} title="About VoxMatch Studio">
           <AboutModalContent />
         </Modal>
 
-        <Modal
-          isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          title="Export Project Settings"
-        >
+        <Modal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} title="Export Project Settings">
           <ExportModalContent
             settings={settings}
             handleSettingChange={handleSettingChange}
-            selectSaveLocation={async () =>
-              window.electronAPI?.selectSaveLocation?.() ?? null
-            }
+            selectSaveLocation={async () => window.electronAPI?.selectSaveLocation?.() ?? null}
             file={activeFile || null}
             project={project}
             mediaElementRef={mediaElementRef}
@@ -763,12 +648,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           />
         </Modal>
 
-        <Modal
-          isOpen={isPreferencesModalOpen}
-          onClose={() => setIsPreferencesModalOpen(false)}
-          title="Preferences"
-          isSidePanelContent
-        >
+        <Modal isOpen={isPreferencesModalOpen} onClose={() => setIsPreferencesModalOpen(false)} title="Preferences" isSidePanelContent>
           <div className="flex h-[calc(90vh-100px)]">
             <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
               {preferenceSections.map((section) => (
@@ -795,12 +675,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           </div>
         </Modal>
 
-        <Modal
-          isOpen={isHelpModalOpen}
-          onClose={() => setIsHelpModalOpen(false)}
-          title="Help & Support"
-          isSidePanelContent
-        >
+        <Modal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} title="Help & Support" isSidePanelContent>
           <div className="flex h-[calc(90vh-100px)]">
             <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
               {helpSections.map((section) => (
@@ -827,20 +702,11 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           </div>
         </Modal>
 
-        <Modal
-          isOpen={isFileInfoModalOpen}
-          onClose={() => setIsFileInfoModalOpen(false)}
-          title="File Information"
-        >
+        <Modal isOpen={isFileInfoModalOpen} onClose={() => setIsFileInfoModalOpen(false)} title="File Information">
           <FileInfoModalContent file={selectedFileInfo} />
         </Modal>
 
-        <Modal
-          isOpen={isStageSettingsModalOpen}
-          onClose={() => setIsStageSettingsModalOpen(false)}
-          title="Stage Settings"
-          size="stage"
-        >
+        <Modal isOpen={isStageSettingsModalOpen} onClose={() => setIsStageSettingsModalOpen(false)} title="Stage Settings" size="stage">
           <StageSettingsContent
             stageStyle={stageStyle}
             setStageStyle={(newStyle) => {

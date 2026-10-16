@@ -20,6 +20,26 @@ interface ProjectCardProps {
   formatDate: (timestamp: number) => string;
 }
 
+/* Sum up clips across all tracks (so the card reflects the whole project). */
+function totalClips(project: VoxMatchProject): number {
+  let total = 0;
+  const tracks = project.tracks ?? {};
+  for (const t of Object.values(tracks)) {
+    total += (t?.lyrics?.length ?? 0) + (t?.subtitles?.length ?? 0);
+  }
+  return total;
+}
+
+/* True if at least one track has content. */
+function hasAnyContent(project: VoxMatchProject): boolean {
+  const tracks = project.tracks ?? {};
+  for (const t of Object.values(tracks)) {
+    if ((t?.lyrics?.length ?? 0) > 0) return true;
+    if ((t?.subtitles?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 export const ProjectCard: React.FC<ProjectCardProps> = ({
   project,
   onOpen,
@@ -55,13 +75,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     f.type.startsWith('audio'),
   ).length;
 
-  const hasContent =
-    project.lyrics.length > 0 || project.subtitles.length > 0;
+  const hasContent = hasAnyContent(project);
+  const clipCount = totalClips(project);
 
   return (
     <>
       <div className="bg-app-surface border border-app-border rounded-lg overflow-hidden hover:border-primary/40 transition-all group shadow-sm hover:shadow-md">
-        {/* Thumbnail — real stage snapshot */}
+        {/* Thumbnail */}
         <div className="relative aspect-video bg-black border-b border-app-border overflow-hidden">
           {snapshot ? (
             <img
@@ -86,7 +106,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             </div>
           )}
 
-          {/* Mode pill — top right */}
+          {/* Mode pill */}
           <span
             className={`absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full font-medium backdrop-blur-sm ${
               project.mode === 'lyrics'
@@ -130,7 +150,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               {audioCount}
             </span>
             <span className="flex items-center gap-1 ml-auto">
-              {project.subtitles.length + project.lyrics.length} clips
+              {clipCount} clips
             </span>
           </div>
 

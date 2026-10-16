@@ -1,6 +1,14 @@
 // src/test/setup.ts
 import '@testing-library/jest-dom/vitest';
 
+// Reset window.__VOX_HISTORY_LOG__ before every test.
+import { beforeEach } from 'vitest';
+import { resetHistoryLog } from '../utils/historyLog';
+
+beforeEach(() => {
+  resetHistoryLog();
+});
+
 // jsdom already provides localStorage, but guard for safety
 // in case tests run in a non-browser environment.
 if (typeof window !== 'undefined' && !window.localStorage) {

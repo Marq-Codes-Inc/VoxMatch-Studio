@@ -68,12 +68,9 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
     (type: ResizeType, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-
       const container = containerRef.current;
       if (!container) return;
-
       const rect = container.getBoundingClientRect();
-
       setResizeState({
         type,
         startX: e.clientX,
@@ -84,7 +81,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
         containerWidth: rect.width,
         containerHeight: rect.height,
       });
-
       document.body.style.cursor =
         type === 'left-width' ? 'col-resize' : 'row-resize';
       document.body.style.userSelect = 'none';
@@ -95,52 +91,33 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
       if (!resizeState) return;
-
       const {
-        type,
-        startX,
-        startY,
-        initialLeftWidth,
-        initialVideoHeight,
-        initialImportHeight,
-        containerWidth,
-        containerHeight,
+        type, startX, startY,
+        initialLeftWidth, initialVideoHeight, initialImportHeight,
+        containerWidth, containerHeight,
       } = resizeState;
-
       const deltaX = e.clientX - startX;
       const deltaY = e.clientY - startY;
-
       const updates: Partial<HorizontalLayoutSizes> = {};
-
       switch (type) {
         case 'left-width': {
           const deltaPercent = (deltaX / containerWidth) * 100;
-          updates.leftWidth = Math.min(
-            60,
-            Math.max(20, initialLeftWidth + deltaPercent),
-          );
+          updates.leftWidth = Math.min(60, Math.max(20, initialLeftWidth + deltaPercent));
           break;
         }
         case 'video-height': {
           const deltaPercent = (deltaY / containerHeight) * 100;
-          updates.videoHeight = Math.min(
-            80,
-            Math.max(20, initialVideoHeight + deltaPercent),
-          );
+          updates.videoHeight = Math.min(80, Math.max(20, initialVideoHeight + deltaPercent));
           break;
         }
         case 'left-panel-horizontal': {
           if (!leftPanelRef.current) return;
           const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
           const deltaPercent = (deltaY / leftPanelRect.height) * 100;
-          updates.importHeight = Math.min(
-            70,
-            Math.max(20, initialImportHeight + deltaPercent),
-          );
+          updates.importHeight = Math.min(70, Math.max(20, initialImportHeight + deltaPercent));
           break;
         }
       }
-
       if (Object.keys(updates).length > 0) onResize(updates);
     },
     [resizeState, onResize],
@@ -171,21 +148,16 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
       e.preventDefault();
       const fileId = e.dataTransfer.getData('text/plain');
       const fileToLoad = context.importedFiles.find((f) => f.id === fileId);
-      if (fileToLoad) {
-        await context.onFileActivate(fileToLoad);
-      }
+      if (fileToLoad) await context.onFileActivate(fileToLoad);
     },
     [context.importedFiles, context.onFileActivate],
   );
 
   return (
     <div className="flex flex-row w-full h-full p-2 gap-2">
-      {/* LEFT COLUMN */}
       <div
         ref={leftPanelRef}
-        className={`flex flex-col gap-2 min-h-0 ${
-          isMaximizedVideo ? 'hidden' : ''
-        }`}
+        className={`flex flex-col gap-2 min-h-0 ${isMaximizedVideo ? 'hidden' : ''}`}
         style={{ width: `${sizes.leftWidth}%` }}
       >
         {!isLeftPanelFilled && (
@@ -202,7 +174,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 onFilesDropped={context.handleFilesDropped}
               />
             </div>
-
             <ResizeHandle
               orientation="horizontal"
               onMouseDown={(e) => startResize('left-panel-horizontal', e)}
@@ -240,8 +211,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             setLyricTextStyle={context.setLyricTextStyle}
             subtitleTextStyle={context.subtitleTextStyle}
             setSubtitleTextStyle={context.setSubtitleTextStyle}
-            subtitleLanguage="en-US"
-            setSubtitleLanguage={() => {}}
+            subtitleLanguage={context.subtitleLanguage}
+            setSubtitleLanguage={context.setSubtitleLanguage}
             onOpenStageSettingsModal={onOpenStageSettingsModal}
             handleBatchAddLyrics={context.handleBatchAddLyrics}
             handleBatchAddSubtitles={context.handleBatchAddSubtitles}
@@ -260,7 +231,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
         />
       )}
 
-      {/* RIGHT COLUMN */}
       <div className="flex flex-col flex-1 gap-2 min-h-0">
         <div
           ref={videoSlotRef}
@@ -274,7 +244,6 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
               orientation="horizontal"
               onMouseDown={(e) => startResize('video-height', e)}
             />
-
             <div
               className="min-h-0 overflow-hidden"
               style={{ height: `${100 - sizes.videoHeight}%` }}
@@ -295,18 +264,15 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 timelineData={context.timelineData}
                 updateTimelineData={context.updateTimelineData}
                 deleteTimelineItem={context.deleteTimelineItem}
-                selectedIds={context.selectedSubtitleIds}
-                toggleSelection={context.toggleSubtitleSelection}
+                selectedIds={context.selectedIds}
+                toggleSelection={context.toggleTimelineSelection}
                 undo={context.undo}
                 redo={context.redo}
                 canUndo={context.canUndo}
                 canRedo={context.canRedo}
                 snapToGrid={context.settings.snapToGrid}
                 toggleSnapToGrid={() =>
-                  context.handleSettingChange(
-                    'snapToGrid',
-                    !context.settings.snapToGrid,
-                  )
+                  context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
                 }
                 addMarker={context.addMarker}
                 markers={context.markers}
@@ -316,6 +282,8 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
                 onClearTimelineAll={context.handleClearTimelineAll}
                 isVuOverlayEnabled={context.isVuOverlayEnabled}
                 onToggleVuOverlay={context.toggleVuOverlay}
+                splitTimelineItem={context.splitTimelineItem}
+                mergeTimelineItems={context.mergeTimelineItems}
               />
             </div>
           </>

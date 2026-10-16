@@ -6,6 +6,7 @@ import {
   LayoutState,
   TimingSettings,
   VoxMatchProject,
+  FileTrack,
 } from '../types/types';
 
 export const DEFAULT_TIMING: TimingSettings = {
@@ -42,8 +43,6 @@ export const DEFAULT_STAGE_STYLE: StageStyle = {
   customWidth: 1920,
   customHeight: 1080,
   showSafeArea: false,
-
-  // NEW: media overlay toggles default to visible
   hideVideoLayer: false,
   hideAudioTitle: false,
 };
@@ -85,23 +84,49 @@ export const DEFAULT_LAYOUT: LayoutState = {
   },
 };
 
-export function createDefaultProject(name?: string): Omit<VoxMatchProject, 'id'> {
+export const DEFAULT_TRACK_KEY = '__default__';
+
+export function makeDefaultTrack(
+  mode: 'lyrics' | 'subtitles' = 'subtitles',
+): FileTrack {
   return {
-    name: name || `Project ${new Date().toLocaleDateString()}`,
-    mode: 'subtitles',
     lyrics: [],
     subtitles: [],
-    mediaFiles: [],
-    activeFileId: null,
     markers: [],
-    settings: { ...DEFAULT_SETTINGS },
     stageStyle: { ...DEFAULT_STAGE_STYLE },
     lyricTextStyle: { ...DEFAULT_TEXT_STYLE },
     subtitleTextStyle: { ...DEFAULT_TEXT_STYLE },
-    layout: { ...DEFAULT_LAYOUT },
     zoom: 1,
+    mode,
+  };
+}
+
+export function createDefaultProject(
+  name?: string,
+): Omit<VoxMatchProject, 'id'> {
+  const defaultTrack = makeDefaultTrack('subtitles');
+
+  return {
+    name: name || `Project ${new Date().toLocaleDateString()}`,
+    mode: 'subtitles',
+    mediaFiles: [],
+    activeFileId: null,
+    settings: { ...DEFAULT_SETTINGS },
+    layout: { ...DEFAULT_LAYOUT },
     isSaved: false,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+
+    lyrics: defaultTrack.lyrics,
+    subtitles: defaultTrack.subtitles,
+    markers: defaultTrack.markers,
+    stageStyle: defaultTrack.stageStyle,
+    lyricTextStyle: defaultTrack.lyricTextStyle,
+    subtitleTextStyle: defaultTrack.subtitleTextStyle,
+    zoom: defaultTrack.zoom,
+
+    tracks: {
+      [DEFAULT_TRACK_KEY]: defaultTrack,
+    },
   };
 }

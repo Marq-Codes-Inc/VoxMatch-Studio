@@ -14,7 +14,6 @@ import {
 } from '../constants/defaults';
 
 function simulateDiskWrite(project: VoxMatchProject): string {
-  // Exactly what project:save does on disk
   return serializeProject(project);
 }
 
@@ -26,16 +25,32 @@ function simulateDiskRead(raw: string, filePath: string): VoxMatchProject {
 
 describe('.vxm end-to-end round trip', () => {
   it('preserves full project state through save → load', () => {
-    const original: VoxMatchProject = {
-      id: 'proj-e2e',
-      name: 'Karaoke Demo',
-      mode: 'lyrics',
+    const m1Track = {
       lyrics: [
         { id: 'l1', text: 'First line', startTime: 0, endTime: 2 },
         { id: 'l2', text: 'Second line', startTime: 2.5, endTime: 5 },
         { id: 'l3', text: 'Third line', startTime: 5.5, endTime: 8 },
       ],
       subtitles: [],
+      markers: [
+        { id: 'mk1', time: 0, label: 'Intro' },
+        { id: 'mk2', time: 30, label: 'Verse 1' },
+      ],
+      stageStyle: { ...DEFAULT_STAGE_STYLE, aspectRatio: '9:16' },
+      lyricTextStyle: {
+        ...DEFAULT_TEXT_STYLE,
+        fontSize: 42,
+        textColor: '#FFD700',
+      },
+      subtitleTextStyle: DEFAULT_TEXT_STYLE,
+      zoom: 2.5,
+      mode: 'lyrics' as const,
+    };
+
+    const original: VoxMatchProject = {
+      id: 'proj-e2e',
+      name: 'Karaoke Demo',
+      mode: 'lyrics',
       mediaFiles: [
         {
           id: 'm1',
@@ -50,54 +65,51 @@ describe('.vxm end-to-end round trip', () => {
         },
       ],
       activeFileId: 'm1',
-      markers: [
-        { id: 'mk1', time: 0, label: 'Intro' },
-        { id: 'mk2', time: 30, label: 'Verse 1' },
-      ],
       settings: { ...DEFAULT_SETTINGS, theme: 'light', primaryColor: '#3B82F6' },
-      stageStyle: { ...DEFAULT_STAGE_STYLE, aspectRatio: '9:16' },
-      lyricTextStyle: { ...DEFAULT_TEXT_STYLE, fontSize: 42, textColor: '#FFD700' },
-      subtitleTextStyle: DEFAULT_TEXT_STYLE,
       layout: DEFAULT_LAYOUT,
-      zoom: 2.5,
       isSaved: true,
       createdAt: 100,
       updatedAt: 200,
+
+      lyrics: m1Track.lyrics,
+      subtitles: m1Track.subtitles,
+      markers: m1Track.markers,
+      stageStyle: m1Track.stageStyle,
+      lyricTextStyle: m1Track.lyricTextStyle,
+      subtitleTextStyle: m1Track.subtitleTextStyle,
+      zoom: m1Track.zoom,
+
+      tracks: {
+        m1: m1Track,
+      },
     };
 
-    // 1. User hits Save As → we pick a path
     const chosenPath = ensureVxmExtension('/exports/Karaoke Demo');
     expect(chosenPath).toBe('/exports/Karaoke Demo.vxm');
 
-    // 2. Disk write
     const onDisk = simulateDiskWrite(original);
     expect(onDisk).toContain('"Karaoke Demo"');
     expect(onDisk).toContain('"First line"');
 
-    // 3. App closes, user re-opens the .vxm
     const reloaded = simulateDiskRead(onDisk, chosenPath);
 
-    // 4. Verify identity
     expect(reloaded.id).toBe(original.id);
     expect(reloaded.name).toBe(original.name);
     expect(reloaded.mode).toBe('lyrics');
     expect(reloaded.projectFilePath).toBe(chosenPath);
-    expect(reloaded.zoom).toBe(2.5);
 
-    // 5. Verify clips
-    expect(reloaded.lyrics).toEqual(original.lyrics);
+    const track = reloaded.tracks['m1'];
+    expect(track).toBeTruthy();
+    expect(track.zoom).toBe(2.5);
+    expect(track.lyrics).toEqual(original.tracks['m1'].lyrics);
+    expect(track.markers).toEqual(original.tracks['m1'].markers);
 
-    // 6. Verify markers
-    expect(reloaded.markers).toEqual(original.markers);
-
-    // 7. Verify styling
     expect(reloaded.settings.theme).toBe('light');
     expect(reloaded.settings.primaryColor).toBe('#3B82F6');
-    expect(reloaded.stageStyle.aspectRatio).toBe('9:16');
-    expect(reloaded.lyricTextStyle.fontSize).toBe(42);
-    expect(reloaded.lyricTextStyle.textColor).toBe('#FFD700');
+    expect(track.stageStyle.aspectRatio).toBe('9:16');
+    expect(track.lyricTextStyle.fontSize).toBe(42);
+    expect(track.lyricTextStyle.textColor).toBe('#FFD700');
 
-    // 8. Media handles were stripped and must be re-attached at runtime
     expect(reloaded.mediaFiles).toHaveLength(1);
     expect(reloaded.mediaFiles[0].id).toBe('m1');
     expect(reloaded.mediaFiles[0].path).toBe('/music/track.mp3');
@@ -116,4 +128,3 @@ describe('.vxm end-to-end round trip', () => {
     expect(() => simulateDiskRead(missing, '/x.vxm')).toThrow(/missing "id"/);
   });
 });
-

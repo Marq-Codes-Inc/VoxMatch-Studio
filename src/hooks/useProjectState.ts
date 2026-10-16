@@ -156,13 +156,6 @@ export interface UseProjectStateReturn {
 }
 
 export function useProjectState(project: VoxMatchProject): UseProjectStateReturn {
-  /* ------------------------------------------------------------------ */
-  /* Resolve the "effective" active track key.                          */
-  /*                                                                    */
-  /* If the project has no active file (e.g. fresh project, or a        */
-  /* legacy flat-shaped fixture), we fall back to a synthetic default   */
-  /* track so all mutations still land somewhere durable.               */
-  /* ------------------------------------------------------------------ */
   const resolveActiveKey = useCallback(
     (tracks: Record<string, FileTrack>, activeId: string | null): string => {
       if (activeId && tracks[activeId]) return activeId;
@@ -182,8 +175,6 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     const hasActive = !!activeId && !!cloned[activeId];
 
     if (!hasActive) {
-      // Synthesize a track to hold top-level legacy fields (if any) so
-      // mutations have somewhere to go.
       const legacyTrack = makeEmptyTrack(project.mode);
       const legacy = project as any;
       if (Array.isArray(legacy.lyrics)) legacyTrack.lyrics = clone(legacy.lyrics);
@@ -238,9 +229,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     isLeftPanelTopRowFilled: false,
   });
 
-  /* ------------------------------------------------------------------ */
-  /* Derived values                                                     */
-  /* ------------------------------------------------------------------ */
+  /* Derived values */
   const effectiveActiveId = resolveActiveKey(tracks, activeFileId);
   const activeTrack: FileTrack =
     tracks[effectiveActiveId] ?? makeEmptyTrack(project.mode);
@@ -260,9 +249,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
   const selectedIds =
     activeLeftPanelTab === 'subtitles' ? selectedSubtitleIds : selectedLyricIds;
 
-  /* ------------------------------------------------------------------ */
-  /* Track mutation primitives                                          */
-  /* ------------------------------------------------------------------ */
+  /* Track mutation primitives */
   const updateTrack = useCallback(
     (fileId: string, updater: (prev: FileTrack) => FileTrack) => {
       setTracks((prev) => {
@@ -287,9 +274,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     [effectiveActiveId, project.mode],
   );
 
-  /* ------------------------------------------------------------------ */
-  /* History                                                            */
-  /* ------------------------------------------------------------------ */
+  /* History */
   const stateRef = useRef({
     tracks,
     activeFileId,
@@ -395,9 +380,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     if (snap) applySnapshot(snap);
   }, [history, applySnapshot]);
 
-  /* ------------------------------------------------------------------ */
-  /* Track-aware setters                                                */
-  /* ------------------------------------------------------------------ */
+  /* Track-aware setters */
   const setLyrics = useCallback<React.Dispatch<React.SetStateAction<LyricLine[]>>>(
     (value) => {
       updateActiveTrack((t) => ({
@@ -501,9 +484,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     [commit],
   );
 
-  /* ------------------------------------------------------------------ */
-  /* Selection                                                          */
-  /* ------------------------------------------------------------------ */
+  /* Selection */
   const toggleSubtitleSelection = useCallback((id: string) => {
     setSelectedSubtitleIds((prev) => {
       const next = new Set(prev);
@@ -526,9 +507,7 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     [activeLeftPanelTab, toggleSubtitleSelection, toggleLyricSelection],
   );
 
-  /* ------------------------------------------------------------------ */
-  /* Mutations                                                          */
-  /* ------------------------------------------------------------------ */
+  /* Mutations */
   const handleLyricChange = useCallback(
     (id: string, field: 'text' | 'startTime' | 'endTime', value: string | number) => {
       commit(`lyric:${field}`, () => {

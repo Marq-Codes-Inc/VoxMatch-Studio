@@ -18,7 +18,6 @@ export const CustomSlider: React.FC<CustomSliderProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   
   const percentage = ((value - min) / (max - min)) * 100;
-
   const updateValue = (clientX: number) => {
     if (!sliderRef.current) return;
     const rect = sliderRef.current.getBoundingClientRect();

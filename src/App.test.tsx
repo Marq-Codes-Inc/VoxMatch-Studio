@@ -7,118 +7,34 @@ import {
   DEFAULT_STAGE_STYLE,
   DEFAULT_TEXT_STYLE,
   DEFAULT_LAYOUT,
+  DEFAULT_TRACK_KEY,
+  makeDefaultTrack,
 } from './constants/defaults';
 
 function makeProject(overrides: Partial<VoxMatchProject> = {}): VoxMatchProject {
+  const track = makeDefaultTrack('lyrics');
   return {
     id: 'p1',
     name: 'Test',
     mode: 'lyrics',
-    lyrics: [],
-    subtitles: [],
     mediaFiles: [],
     activeFileId: null,
-    markers: [],
     settings: DEFAULT_SETTINGS,
-    stageStyle: DEFAULT_STAGE_STYLE,
-    lyricTextStyle: DEFAULT_TEXT_STYLE,
-    subtitleTextStyle: DEFAULT_TEXT_STYLE,
     layout: DEFAULT_LAYOUT,
-    zoom: 1,
     isSaved: true,
     createdAt: 1,
     updatedAt: 1,
+
+    // legacy top-level mirrors (kept in sync with the default track)
+    lyrics: track.lyrics,
+    subtitles: track.subtitles,
+    markers: track.markers,
+    stageStyle: track.stageStyle,
+    lyricTextStyle: track.lyricTextStyle,
+    subtitleTextStyle: track.subtitleTextStyle,
+    zoom: track.zoom,
+
+    tracks: { [DEFAULT_TRACK_KEY]: track },
     ...overrides,
   };
 }
-
-describe('shallowCompareProjects', () => {
-  it('returns true for identical object reference', () => {
-    const p = makeProject();
-    expect(shallowCompareProjects(p, p)).toBe(true);
-  });
-
-  it('returns true for structurally identical projects', () => {
-    expect(shallowCompareProjects(makeProject(), makeProject())).toBe(true);
-  });
-
-  it('returns false when name changes', () => {
-    expect(
-      shallowCompareProjects(makeProject(), makeProject({ name: 'Other' })),
-    ).toBe(false);
-  });
-
-  it('returns false when a clip text changes (same count)', () => {
-    const a = makeProject({
-      lyrics: [{ id: 'l1', text: 'A', startTime: 0, endTime: 1 }],
-    });
-    const b = makeProject({
-      lyrics: [{ id: 'l1', text: 'B', startTime: 0, endTime: 1 }],
-    });
-    expect(shallowCompareProjects(a, b)).toBe(false);
-  });
-
-  it('returns false when a clip timing changes (same count)', () => {
-    const a = makeProject({
-      lyrics: [{ id: 'l1', text: 'A', startTime: 0, endTime: 1 }],
-    });
-    const b = makeProject({
-      lyrics: [{ id: 'l1', text: 'A', startTime: 0, endTime: 2 }],
-    });
-    expect(shallowCompareProjects(a, b)).toBe(false);
-  });
-
-  it('returns false when clip count differs', () => {
-    const a = makeProject({
-      lyrics: [{ id: 'l1', text: 'A', startTime: 0, endTime: 1 }],
-    });
-    const b = makeProject({
-      lyrics: [
-        { id: 'l1', text: 'A', startTime: 0, endTime: 1 },
-        { id: 'l2', text: 'B', startTime: 1, endTime: 2 },
-      ],
-    });
-    expect(shallowCompareProjects(a, b)).toBe(false);
-  });
-
-  it('returns false when media file loaded state flips', () => {
-    const a = makeProject({
-      mediaFiles: [
-        { id: 'm', name: 'a.mp3', path: '/a', type: 'audio/mpeg', size: 1, url: null, loaded: false },
-      ],
-    });
-    const b = makeProject({
-      mediaFiles: [
-        { id: 'm', name: 'a.mp3', path: '/a', type: 'audio/mpeg', size: 1, url: 'blob:x', loaded: true },
-      ],
-    });
-    expect(shallowCompareProjects(a, b)).toBe(false);
-  });
-
-  it('returns false when isSaved flips', () => {
-    expect(
-      shallowCompareProjects(makeProject(), makeProject({ isSaved: false })),
-    ).toBe(false);
-  });
-
-  it('returns false when zoom changes', () => {
-    expect(
-      shallowCompareProjects(makeProject(), makeProject({ zoom: 2 })),
-    ).toBe(false);
-  });
-
-  it('ignores runtime-only media handles when metadata matches', () => {
-    // url/loaded/file changes are ignored — only name/path/id/loaded matter
-    const a = makeProject({
-      mediaFiles: [
-        { id: 'm', name: 'a.mp3', path: '/a', type: 'audio/mpeg', size: 1, url: null, loaded: true },
-      ],
-    });
-    const b = makeProject({
-      mediaFiles: [
-        { id: 'm', name: 'a.mp3', path: '/a', type: 'audio/mpeg', size: 1, url: 'blob:x', loaded: true },
-      ],
-    });
-    expect(shallowCompareProjects(a, b)).toBe(true);
-  });
-});

@@ -1,6 +1,6 @@
 // src/utils/projectManager.ts
 import { VoxMatchProject } from '../types/project';
-import { DEFAULT_SETTINGS, DEFAULT_STAGE_STYLE, DEFAULT_TEXT_STYLE, DEFAULT_LAYOUT } from '../constants/defaults';
+import { createDefaultProject } from '../constants/defaults';
 import { generateId } from './utils';
 
 // Session state types
@@ -85,27 +85,13 @@ class ProjectManager {
 
   // Create a new project
   createProject(name?: string): VoxMatchProject {
-    const newProject: VoxMatchProject = {
+    return {
       id: generateId(),
-      name: name || `Project ${new Date().toLocaleDateString()}`,
-      mode: 'subtitles',
-      lyrics: [],
-      subtitles: [],
-      mediaFiles: [],
-      activeFileId: null,
-      markers: [],
-      settings: { ...DEFAULT_SETTINGS },
-      stageStyle: { ...DEFAULT_STAGE_STYLE },
-      lyricTextStyle: { ...DEFAULT_TEXT_STYLE },
-      subtitleTextStyle: { ...DEFAULT_TEXT_STYLE },
-      layout: { ...DEFAULT_LAYOUT },
-      zoom: 1,
+      ...createDefaultProject(name),
       isSaved: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-
-    return newProject;
   }
 
   // Start a new session with a project
@@ -181,7 +167,7 @@ class ProjectManager {
       if (!result.canceled && result.filePaths?.[0]) {
         const filePath = result.filePaths[0];
         const fileContent = await window.electronAPI.loadProjectFile(filePath);
-        
+
         if (fileContent) {
           const project = JSON.parse(fileContent);
           this.startSession(project);
@@ -245,7 +231,7 @@ class ProjectManager {
       };
 
       await window.electronAPI.saveProject(project, filePath);
-      
+
       this.state.activeProject = project;
       this.saveProjectToStorage(project);
       this.addToRecentProjects(project);
@@ -300,7 +286,7 @@ class ProjectManager {
   // End current session and return to home
   endSession(): void {
     this.stopAutoSave();
-    
+
     if (this.state.activeProject) {
       // Final save before closing
       this.saveProjectToStorage({
@@ -312,7 +298,7 @@ class ProjectManager {
     this.state.currentSession = null;
     this.state.activeProject = null;
     this.state.appState = 'home';
-    
+
     this.notifyListeners();
   }
 
@@ -320,7 +306,7 @@ class ProjectManager {
   deleteProject(projectId: string): boolean {
     try {
       localStorage.removeItem(`voxmatch-project-${projectId}`);
-      
+
       this.state.recentProjects = this.state.recentProjects.filter(p => p.id !== projectId);
       this.saveRecentProjects();
 

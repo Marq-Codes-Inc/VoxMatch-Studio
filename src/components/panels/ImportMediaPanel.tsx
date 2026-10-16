@@ -13,7 +13,7 @@ interface ImportMediaPanelProps {
     file: ImportedMediaFile,
     targetElement?: HTMLElement,
   ) => void;
-  handleDragStart: (e: React.DragEvent, file: ImportedMediaFile) => void;
+  handleDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
   onFileActivate: (file: ImportedMediaFile) => Promise<void>;
   onFilesDropped?: (files: File[]) => Promise<void>;
 }
@@ -26,19 +26,21 @@ const ACCEPTED_EXT = new Set([
 function isFileDrag(e: React.DragEvent): boolean {
   const types = e.dataTransfer?.types;
   if (!types) return false;
-  // React exposes a DOMStringList-like; Array.from works.
   return Array.from(types as any).includes('Files');
 }
 
 export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
-  importedFiles, activeFileId, loadingFileId,
-  handleOpenFile, handleContextMenu, handleDragStart,
-  onFileActivate, onFilesDropped,
+  importedFiles,
+  activeFileId,
+  loadingFileId,
+  handleOpenFile,
+  handleContextMenu,
+  handleDragStart,
+  onFileActivate,
+  onFilesDropped,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessingDrop, setIsProcessingDrop] = useState(false);
-
-  // Depth counter to prevent flicker when moving over children.
   const dragDepthRef = useRef(0);
 
   const videoCount = importedFiles.filter((f) => f.type.startsWith('video')).length;
@@ -59,7 +61,6 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
   };
 
   const onDragEnter = useCallback((e: React.DragEvent) => {
-    // Only react to file drags — ignore internal drags (timeline clips).
     if (!isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
@@ -119,9 +120,22 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
   );
 
   const getFileIcon = (file: ImportedMediaFile) => {
-    if (file.type.startsWith('video')) return <Film size={16} className="text-blue-400" />;
-    if (file.type.startsWith('audio')) return <Music size={16} className="text-green-400" />;
+    if (file.type.startsWith('video'))
+      return <Film size={16} className="text-blue-400" />;
+    if (file.type.startsWith('audio'))
+      return <Music size={16} className="text-green-400" />;
     return <Upload size={16} />;
+  };
+
+  const handleItemDragStart = (
+    e: React.DragEvent,
+    file: ImportedMediaFile,
+    isLoading: boolean,
+  ) => {
+    if (isLoading) return;
+    e.dataTransfer.setData('text/plain', file.id);
+    e.dataTransfer.effectAllowed = 'copy';
+    handleDragStart?.(e, file);
   };
 
   return (
@@ -152,10 +166,12 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
           ) : (
             <>
               <Upload className="mx-auto mb-3 text-app-gray" size={32} />
-              <p className="mb-2 text-sm font-medium">Drag & drop media or subtitle files here</p>
+              <p className="mb-2 text-sm font-medium">
+                Drag & drop media or subtitle files here
+              </p>
               <p className="mb-2 text-xs text-app-gray">or</p>
               <button
-                className="mt-2 px-4 py-1.5 bg-primary text-white rounded-md hover:bg-primary-hover text-sm hover:border-primary cursor-pointer transition-colors"
+                className="mt-2 px-4 py-1.5 bg-primary text-white rounded-md hover:bg-primary-hover text-sm cursor-pointer transition-colors"
                 onClick={handleOpenFile}
               >
                 Browse Files
@@ -163,7 +179,9 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
               <p className="mt-3 text-xs text-app-gray">
                 Supported: MP3, WAV, M4A, OGG, FLAC, MP4, MOV, WebM, MKV
               </p>
-              <p className="mt-1 text-xs text-app-gray">Subtitles: SRT, VTT, LRC, ASS</p>
+              <p className="mt-1 text-xs text-app-gray">
+                Subtitles: SRT, VTT, LRC, ASS
+              </p>
             </>
           )}
         </div>
@@ -225,30 +243,35 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
                 >
                   <div
                     draggable={!isLoading}
-                    onDragStart={(e) => {
-                      if (isLoading) return;
-                      e.dataTransfer.setData('text/plain', file.id);
-                      e.dataTransfer.effectAllowed = 'copy';
-                      handleDragStart(e, file);
-                    }}
+                    onDragStart={(e) => handleItemDragStart(e, file, isLoading)}
                     className={`flex-1 pr-2 truncate flex items-center ${
                       !isLoading ? 'cursor-grab' : 'cursor-default'
                     }`}
                   >
                     {isActive && (
-                      <span className="w-2 h-2 rounded-full bg-green-500 mr-2 flex-shrink-0 animate-pulse" title="Active in timeline" />
+                      <span
+                        className="w-2 h-2 rounded-full bg-green-500 mr-2 flex-shrink-0 animate-pulse"
+                        title="Active in timeline"
+                      />
                     )}
                     {!isLoaded && !isLoading && (
-                      <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2 flex-shrink-0" title="Not loaded - double-click to load" />
+                      <span
+                        className="w-2 h-2 rounded-full bg-yellow-500 mr-2 flex-shrink-0"
+                        title="Not loaded - double-click to load"
+                      />
                     )}
                     <span className="mr-2 flex-shrink-0">{getFileIcon(file)}</span>
                     <div className="flex-1 min-w-0">
                       <span className="truncate block text-sm">{file.name}</span>
-                      <span className="text-xs text-app-gray block truncate">{formatFileSize(file.size)}</span>
+                      <span className="text-xs text-app-gray block truncate">
+                        {formatFileSize(file.size)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-1 flex-shrink-0">
-                    {isLoading && <Loader className="animate-spin text-primary" size={16} />}
+                    {isLoading && (
+                      <Loader className="animate-spin text-primary" size={16} />
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

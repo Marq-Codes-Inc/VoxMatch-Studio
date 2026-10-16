@@ -1,183 +1,96 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+// src/components/ui/Slider.tsx
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface SliderProps {
-  min?: number;
-  max?: number;
-  step?: number;
+  label: string;
   value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
   onChange: (value: number) => void;
-  onAfterChange?: (value: number) => void;
-  orientation?: 'horizontal' | 'vertical';
-  size?: 'sm' | 'md' | 'lg';
-  label?: string; // ← ADD THIS
-  className?: string;
-  disabled?: boolean;
 }
 
-const sizeConfig = {
-  sm: { trackHeight: 4, thumbSize: 12 },
-  md: { trackHeight: 6, thumbSize: 16 },
-  lg: { trackHeight: 8, thumbSize: 20 },
-};
-
 export const Slider: React.FC<SliderProps> = ({
-  min = 0,
-  max = 100,
-  step = 1,
-  value,
-  onChange,
-  onAfterChange,
-  orientation = 'horizontal',
-  size = 'md',
   label,
-  className = '',
-  disabled = false,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = '',
+  onChange,
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const [localValue, setLocalValue] = useState(value);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Sync with external value
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
+  const range = max - min || 1;
+  const percentage = ((value - min) / range) * 100;
 
-  const percent = ((localValue - min) / (max - min)) * 100;
-
-  const clamp = useCallback(
-    (raw: number) => {
-      const stepped = Math.round((raw - min) / step) * step + min;
+  const valueFromClientX = useCallback(
+    (clientX: number) => {
+      const el = trackRef.current;
+      if (!el) return value;
+      const rect = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const ratio = rect.width > 0 ? x / rect.width : 0;
+      const raw = min + ratio * range;
+      const stepped = Math.round(raw / step) * step;
       return Math.max(min, Math.min(max, stepped));
     },
-    [min, max, step]
+    [min, max, range, step, value],
   );
 
-  const calcValueFromPosition = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!trackRef.current) return localValue;
-      const rect = trackRef.current.getBoundingClientRect();
-      let fraction = 0;
-      if (orientation === 'horizontal') {
-        fraction = (clientX - rect.left) / rect.width;
-      } else {
-        fraction = 1 - (clientY - rect.top) / rect.height;
-      }
-      fraction = Math.max(0, Math.min(1, fraction));
-      const raw = fraction * (max - min) + min;
-      return clamp(raw);
-    },
-    [min, max, clamp, orientation, localValue]
-  );
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    onChange(valueFromClientX(e.clientX));
+  };
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (disabled) return;
-      e.preventDefault();
-      isDragging.current = true;
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-
-      const newVal = calcValueFromPosition(e.clientX, e.clientY);
-      setLocalValue(newVal);
-      onChange(newVal);
-    },
-    [disabled, calcValueFromPosition, onChange]
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging.current || disabled) return;
-      const newVal = calcValueFromPosition(e.clientX, e.clientY);
-      setLocalValue(newVal);
-      onChange(newVal);
-    },
-    [calcValueFromPosition, disabled, onChange]
-  );
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      onAfterChange?.(localValue);
-    },
-    [localValue, onAfterChange]
-  );
-
-  // Prevent text selection while dragging
   useEffect(() => {
-    const preventSelection = (e: Event) => {
-      if (isDragging.current) e.preventDefault();
-    };
-    document.addEventListener('selectstart', preventSelection);
-    return () => document.removeEventListener('selectstart', preventSelection);
-  }, []);
+    if (!isDragging) return;
 
-  const { trackHeight, thumbSize } = sizeConfig[size];
-  const isHorizontal = orientation === 'horizontal';
-  const containerClass = isHorizontal
-    ? `w-full flex flex-col gap-1 ${className}`
-    : `h-full flex flex-row-reverse gap-1 ${className}`;
+    const onMove = (e: MouseEvent) => {
+      onChange(valueFromClientX(e.clientX));
+    };
+    const onUp = () => setIsDragging(false);
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isDragging, onChange, valueFromClientX]);
+
+  const formatted =
+    step < 1 ? value.toFixed(step < 0.1 ? 2 : 1).replace(/\.0+$/, '') : String(value);
 
   return (
-    <div
-      ref={trackRef}
-      className={containerClass}
-      role="slider"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={value}
-      aria-orientation={orientation}
-      tabIndex={disabled ? -1 : 0}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      style={{ touchAction: 'none', cursor: disabled ? 'not-allowed' : 'pointer' }}
-    >
-      {/* Label (optional) */}
-      {label && (
-        <label className="text-xs text-app-gray mb-1 select-none">
-          {label}
-        </label>
-      )}
-
-      {/* Track */}
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-app-gray">{label}</label>
+        <span className="text-xs text-app-text font-mono">
+          {formatted}
+          {suffix}
+        </span>
+      </div>
       <div
-        className={`relative bg-app-gray-dark rounded-full ${
-          isHorizontal ? `w-full h-[${trackHeight}px]` : `h-full w-[${trackHeight}px]`
-        }`}
-        style={{
-          width: isHorizontal ? '100%' : trackHeight,
-          height: isHorizontal ? trackHeight : '100%',
-        }}
+        ref={trackRef}
+        onMouseDown={onMouseDown}
+        className="relative w-full h-6 flex items-center cursor-pointer select-none"
       >
-        {/* Filled portion */}
+        <div className="absolute w-full h-1.5 bg-app-gray-dark rounded-full overflow-hidden">
+          <div
+            className="absolute h-full bg-primary rounded-full"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
         <div
-          className="absolute bg-primary rounded-full"
-          style={
-            isHorizontal
-              ? { left: 0, top: 0, height: trackHeight, width: `${percent}%` }
-              : { bottom: 0, left: 0, width: trackHeight, height: `${percent}%` }
-          }
-        />
-        {/* Thumb */}
-        <div
-          className="absolute bg-white rounded-full shadow-md border-2 border-primary"
-          style={
-            isHorizontal
-              ? {
-                  left: `calc(${percent}% - ${thumbSize / 2}px)`,
-                  top: `calc(50% - ${thumbSize / 2}px)`,
-                  width: thumbSize,
-                  height: thumbSize,
-                }
-              : {
-                  bottom: `calc(${percent}% - ${thumbSize / 2}px)`,
-                  left: `calc(50% - ${thumbSize / 2}px)`,
-                  width: thumbSize,
-                  height: thumbSize,
-                }
-          }
+          className="absolute w-4 h-4 bg-white rounded-full shadow-md border-2 border-primary"
+          style={{
+            left: `calc(${percentage}% - 8px)`,
+            cursor: isDragging ? 'grabbing' : 'grab',
+          }}
         />
       </div>
     </div>

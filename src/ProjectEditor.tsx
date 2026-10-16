@@ -7,20 +7,17 @@ import React, {
   useState,
   useLayoutEffect,
 } from 'react';
-import {
-  Sliders,
-  Volume2,
-  Type,
-  Keyboard,
-  BookOpen,
-  Search,
-  Mail,
-} from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import { TopBar } from './components/editor/TopBar';
 import { ContextMenu } from './components/editor/ContextMenu';
-import { HorizontalLayout } from './components/layout/HorizontalLayout';
-import { VerticalLayout } from './components/layout/VerticalLayout';
+import {
+  HorizontalLayout,
+  HorizontalLayoutSizes,
+} from './components/layout/HorizontalLayout';
+import {
+  VerticalLayout,
+  VerticalLayoutSizes,
+} from './components/layout/VerticalLayout';
 import { VideoPreviewPanel } from './components/panels/VideoPreviewPanel';
 import { FileInfoModalContent } from './components/modals/FileInfoModalContent';
 import { StageSettingsContent } from './components/modals/StageSettingsModalContent';
@@ -37,20 +34,6 @@ import {
   ProjectEditorContextValue,
 } from './contexts/ProjectEditorContext';
 import { StageStyle, TextStyle, ImportedMediaFile } from './types/types';
-
-const preferenceSections = [
-  { id: 'general', name: 'General', icon: Sliders },
-  { id: 'audio-video', name: 'Audio & Video', icon: Volume2 },
-  { id: 'lyrics-subtitles', name: 'Lyrics & Subtitles', icon: Type },
-  { id: 'shortcuts', name: 'Shortcuts', icon: Keyboard },
-];
-
-const helpSections = [
-  { id: 'quick-start', name: 'Quick Start', icon: BookOpen },
-  { id: 'tutorials', name: 'Tutorials', icon: BookOpen },
-  { id: 'faq', name: 'FAQ', icon: Search },
-  { id: 'support', name: 'Support', icon: Mail },
-];
 
 interface ProjectEditorProps {
   project: VoxMatchProject;
@@ -69,6 +52,41 @@ interface VideoSlotRect {
   height: number;
 }
 
+class EditorErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; message: string }
+> {
+  state = { hasError: false, message: '' };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error.message };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Editor crashed:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-screen w-screen items-center justify-center bg-app-bg text-app-text p-8">
+          <div className="max-w-md text-center space-y-4">
+            <h1 className="text-xl font-semibold">Something went wrong</h1>
+            <p className="text-sm text-app-gray">{this.state.message}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   project,
   onProjectUpdate,
@@ -78,17 +96,28 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   onThemeChange,
 }) => {
   const editor = useProjectEditor(project, onSaveProject, onSaveProjectAs);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const videoSlotRef = useRef<HTMLDivElement>(null);
+
   const [videoSlotRect, setVideoSlotRect] = useState<VideoSlotRect>({
     left: 0,
     top: 0,
     width: 0,
     height: 0,
   });
+
+  const [horizontalSizes, setHorizontalSizes] = useState<HorizontalLayoutSizes>({
+    leftWidth: 35,
+    videoHeight: 60,
+    importHeight: 40,
+  });
+  const [verticalSizes, setVerticalSizes] = useState<VerticalLayoutSizes>({
+    leftWidth: 70,
+    topSplit: 40,
+    bottomHeight: 40,
+  });
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
 
   const {
     projectState,
@@ -189,9 +218,12 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     handleDeleteSubtitle,
     handleMergeSubtitles,
     handleSplitSubtitle,
+    handleSplitSubtitleAt,
     toggleSubtitleSelection,
     toggleLyricSelection,
     toggleTimelineSelection,
+    clearSelection,
+    selectAll,
     handleBatchAddLyrics,
     handleBatchAddSubtitles,
     undo,
@@ -209,19 +241,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     pasteClipboardAt,
     switchActiveFile,
   } = projectState;
-
-  const [horizontalSizes, setHorizontalSizes] = useState({
-    leftWidth: 35,
-    videoHeight: 60,
-    importHeight: 40,
-  });
-  const [verticalSizes, setVerticalSizes] = useState({
-    leftWidth: 70,
-    topSplit: 40,
-    bottomHeight: 40,
-  });
-
-  const [videoAspect, setVideoAspect] = useState<number | null>(null);
 
   const isModalOpen =
     isPreferencesModalOpen ||
@@ -248,11 +267,9 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     };
 
     update();
-
     const ro = new ResizeObserver(update);
     ro.observe(slot);
     ro.observe(container);
-
     window.addEventListener('resize', update);
 
     return () => {
@@ -266,11 +283,11 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     verticalSizes,
   ]);
 
-  const handleOpenStageSettingsModal = useCallback(() => {
-    setIsStageSettingsModalOpen(true);
-  }, [setIsStageSettingsModalOpen]);
+  const handleVideoLoadedMetadata = useCallback((aspect: number) => {
+    setVideoAspect(aspect);
+  }, []);
 
-  const handleOpenFileLocal = useCallback(async (): Promise<void> => {
+  const handleOpenFileLocal = useCallback(async () => {
     fileInputRef.current?.click();
   }, []);
 
@@ -308,18 +325,18 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
 
   const wrappedUpdateTimelineData = useCallback(
     (id: string, newStart: number, newEnd: number) => {
-      updateTimelineData(id, newStart, newEnd, activeLeftPanelTab);
+      updateTimelineData(id, newStart, newEnd);
       markAsUnsaved();
     },
-    [updateTimelineData, activeLeftPanelTab, markAsUnsaved],
+    [updateTimelineData, markAsUnsaved],
   );
 
   const wrappedDeleteTimelineItem = useCallback(
     (id: string) => {
-      deleteTimelineItem(id, activeLeftPanelTab);
+      deleteTimelineItem(id);
       markAsUnsaved();
     },
-    [deleteTimelineItem, activeLeftPanelTab, markAsUnsaved],
+    [deleteTimelineItem, markAsUnsaved],
   );
 
   const wrappedAddMarker = useCallback(
@@ -345,95 +362,195 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     [onFileActivate],
   );
 
-  const handleVideoLoadedMetadata = useCallback(() => {
-    const video = mediaElementRef.current;
-    if (video && video.videoWidth && video.videoHeight) {
-      setVideoAspect(video.videoWidth / video.videoHeight);
-    }
-  }, [mediaElementRef]);
+  const openStageSettingsModal = useCallback(() => {
+    setIsStageSettingsModalOpen(true);
+  }, [setIsStageSettingsModalOpen]);
 
   const contextValue: ProjectEditorContextValue = useMemo(
     () => ({
-      isPlaying, currentTime, volume, mediaDuration, isMediaLoaded, mediaUrl,
-      mediaElementRef, audioElementRef, analyserRef,
-      activeLeftPanelTab, activeSubTab, layout,
-      tracks, lyrics, subtitles, timelineData, markers, zoom,
-      settings, stageStyle, lyricTextStyle, subtitleTextStyle,
-      currentSubtitleText, subtitleLanguage,
-      selectedSubtitleIds, selectedLyricIds, selectedIds, clipboardClip,
-      importedFiles, activeFileId, activeFile, loadingFileId,
-      canUndo, canRedo, undo, redo,
+      isPlaying,
+      currentTime,
+      volume,
+      mediaDuration,
+      isMediaLoaded,
+      mediaUrl,
+      mediaElementRef,
+      audioElementRef,
+      analyserRef,
+      activeLeftPanelTab,
+      activeSubTab,
+      layout,
+      tracks,
+      lyrics,
+      subtitles,
+      timelineData,
+      markers,
+      zoom,
+      settings,
+      stageStyle,
+      lyricTextStyle,
+      subtitleTextStyle,
+      currentSubtitleText,
+      subtitleLanguage,
+      selectedSubtitleIds,
+      selectedLyricIds,
+      selectedIds,
+      clipboardClip,
+      importedFiles,
+      activeFileId,
+      activeFile,
+      loadingFileId,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
       setIsPlaying: mediaPlayback.setIsPlaying,
-      setVolume, handleSeek, togglePlayPause,
-      setActiveLeftPanelTab, setActiveSubTab, setZoom: wrappedSetZoom,
-      handleLyricChange, handleSubtitleChange,
+      setVolume,
+      handleSeek,
+      togglePlayPause,
+      setActiveLeftPanelTab,
+      setActiveSubTab,
+      setZoom: wrappedSetZoom,
+      handleLyricChange,
+      handleSubtitleChange,
       handleAddLyric: wrappedHandleAddLyric,
       handleAddSubtitle: wrappedHandleAddSubtitle,
-      handleDeleteLyric, handleDeleteSubtitle,
-      handleMergeSubtitles, handleSplitSubtitle,
-      handleBatchAddLyrics, handleBatchAddSubtitles,
-      toggleSubtitleSelection, toggleLyricSelection, toggleTimelineSelection,
+      handleDeleteLyric,
+      handleDeleteSubtitle,
+      handleMergeSubtitles,
+      handleSplitSubtitle,
+      handleSplitSubtitleAt,
+      handleBatchAddLyrics,
+      handleBatchAddSubtitles,
+      toggleSubtitleSelection,
+      toggleLyricSelection,
+      toggleTimelineSelection,
+      clearSelection,
+      selectAll,
       handleSettingChange,
-      setStageStyle: wrappedSetStageStyle as unknown as React.Dispatch<
+      setStageStyle: wrappedSetStageStyle as React.Dispatch<
         React.SetStateAction<StageStyle>
       >,
-      setLyricTextStyle: wrappedSetLyricTextStyle as unknown as React.Dispatch<
+      setLyricTextStyle: wrappedSetLyricTextStyle as React.Dispatch<
         React.SetStateAction<TextStyle>
       >,
-      setSubtitleTextStyle:
-        wrappedSetSubtitleTextStyle as unknown as React.Dispatch<
-          React.SetStateAction<TextStyle>
-        >,
+      setSubtitleTextStyle: wrappedSetSubtitleTextStyle as React.Dispatch<
+        React.SetStateAction<TextStyle>
+      >,
       setSubtitleLanguage,
       updateTimelineData: wrappedUpdateTimelineData,
       deleteTimelineItem: wrappedDeleteTimelineItem,
-      addTimelineItem, duplicateTimelineItem,
-      splitTimelineItem, mergeTimelineItems,
+      addTimelineItem,
+      duplicateTimelineItem,
+      splitTimelineItem,
+      mergeTimelineItems,
       addMarker: wrappedAddMarker,
-      copyClipToClipboard, pasteClipboardAt,
+      copyClipToClipboard,
+      pasteClipboardAt,
       onFileActivate: wrappedOnFileActivate,
       handleOpenFile: handleOpenFileLocal,
-      handleFilesDropped, handleClearTimelineAll, handleNewClip,
+      handleFilesDropped,
+      handleClearTimelineAll,
+      handleNewClip,
       switchActiveFile,
-      formatTime, markAsUnsaved, pushHistory,
-      isVuOverlayEnabled, toggleVuOverlay,
+      formatTime,
+      markAsUnsaved,
+      pushHistory,
+      isVuOverlayEnabled,
+      toggleVuOverlay,
       importSubtitleFile: editor.importSubtitleFile,
+      openStageSettingsModal,
     }),
     [
-      isPlaying, currentTime, volume, mediaDuration, isMediaLoaded, mediaUrl,
-      mediaElementRef, audioElementRef, analyserRef,
-      activeLeftPanelTab, activeSubTab, layout,
-      tracks, lyrics, subtitles, timelineData, markers, zoom,
-      settings, stageStyle, lyricTextStyle, subtitleTextStyle,
-      currentSubtitleText, subtitleLanguage,
-      selectedSubtitleIds, selectedLyricIds, selectedIds, clipboardClip,
-      importedFiles, activeFileId, activeFile, loadingFileId,
-      canUndo, canRedo, undo, redo,
-      mediaPlayback.setIsPlaying, setVolume, handleSeek, togglePlayPause,
-      setActiveLeftPanelTab, setActiveSubTab, wrappedSetZoom,
-      handleLyricChange, handleSubtitleChange,
-      wrappedHandleAddLyric, wrappedHandleAddSubtitle,
-      handleDeleteLyric, handleDeleteSubtitle,
-      handleMergeSubtitles, handleSplitSubtitle,
-      handleBatchAddLyrics, handleBatchAddSubtitles,
-      toggleSubtitleSelection, toggleLyricSelection, toggleTimelineSelection,
+      isPlaying,
+      currentTime,
+      volume,
+      mediaDuration,
+      isMediaLoaded,
+      mediaUrl,
+      mediaElementRef,
+      audioElementRef,
+      analyserRef,
+      activeLeftPanelTab,
+      activeSubTab,
+      layout,
+      tracks,
+      lyrics,
+      subtitles,
+      timelineData,
+      markers,
+      zoom,
+      settings,
+      stageStyle,
+      lyricTextStyle,
+      subtitleTextStyle,
+      currentSubtitleText,
+      subtitleLanguage,
+      selectedSubtitleIds,
+      selectedLyricIds,
+      selectedIds,
+      clipboardClip,
+      importedFiles,
+      activeFileId,
+      activeFile,
+      loadingFileId,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
+      mediaPlayback.setIsPlaying,
+      setVolume,
+      handleSeek,
+      togglePlayPause,
+      setActiveLeftPanelTab,
+      setActiveSubTab,
+      wrappedSetZoom,
+      handleLyricChange,
+      handleSubtitleChange,
+      wrappedHandleAddLyric,
+      wrappedHandleAddSubtitle,
+      handleDeleteLyric,
+      handleDeleteSubtitle,
+      handleMergeSubtitles,
+      handleSplitSubtitle,
+      handleSplitSubtitleAt,
+      handleBatchAddLyrics,
+      handleBatchAddSubtitles,
+      toggleSubtitleSelection,
+      toggleLyricSelection,
+      toggleTimelineSelection,
+      clearSelection,
+      selectAll,
       handleSettingChange,
-      wrappedSetStageStyle, wrappedSetLyricTextStyle, wrappedSetSubtitleTextStyle,
+      wrappedSetStageStyle,
+      wrappedSetLyricTextStyle,
+      wrappedSetSubtitleTextStyle,
       setSubtitleLanguage,
-      wrappedUpdateTimelineData, wrappedDeleteTimelineItem,
-      addTimelineItem, duplicateTimelineItem,
-      splitTimelineItem, mergeTimelineItems,
+      wrappedUpdateTimelineData,
+      wrappedDeleteTimelineItem,
+      addTimelineItem,
+      duplicateTimelineItem,
+      splitTimelineItem,
+      mergeTimelineItems,
       wrappedAddMarker,
-      copyClipToClipboard, pasteClipboardAt,
-      wrappedOnFileActivate, handleOpenFileLocal, handleFilesDropped,
-      handleClearTimelineAll, handleNewClip, switchActiveFile,
-      formatTime, markAsUnsaved, pushHistory,
-      isVuOverlayEnabled, toggleVuOverlay,
+      copyClipToClipboard,
+      pasteClipboardAt,
+      wrappedOnFileActivate,
+      handleOpenFileLocal,
+      handleFilesDropped,
+      handleClearTimelineAll,
+      handleNewClip,
+      switchActiveFile,
+      formatTime,
+      markAsUnsaved,
+      pushHistory,
+      isVuOverlayEnabled,
+      toggleVuOverlay,
       editor.importSubtitleFile,
+      openStageSettingsModal,
     ],
   );
 
-  // Sync
   const contentSignature = useMemo(
     () =>
       JSON.stringify({
@@ -441,8 +558,12 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
         tracks,
         activeFileId,
         mediaFiles: importedFiles.map((f) => ({
-          id: f.id, name: f.name, path: f.path, loaded: f.loaded,
-          duration: f.duration, posterDataUrl: f.posterDataUrl ?? null,
+          id: f.id,
+          name: f.name,
+          path: f.path,
+          loaded: f.loaded,
+          duration: f.duration,
+          posterDataUrl: f.posterDataUrl ?? null,
         })),
         settings,
         layout: {
@@ -450,11 +571,24 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           videoHeight: horizontalSizes.videoHeight,
           topSplit: verticalSizes.topSplit,
           bottomHeight: verticalSizes.bottomHeight,
+          isVerticalLayout: layout.isVerticalLayout,
+          isMaximizedVideo: layout.isMaximizedVideo,
+          isLeftPanelFilled: layout.isLeftPanelFilled,
+          isLeftPanelTopRowFilled: layout.isLeftPanelTopRowFilled,
         },
         isSaved: isProjectSaved,
       }),
-    [project.name, tracks, activeFileId, importedFiles, settings,
-     horizontalSizes, verticalSizes, isProjectSaved],
+    [
+      project.name,
+      tracks,
+      activeFileId,
+      importedFiles,
+      settings,
+      horizontalSizes,
+      verticalSizes,
+      isProjectSaved,
+      layout,
+    ],
   );
 
   const lastSignatureRef = useRef<string | null>(null);
@@ -468,6 +602,10 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       name: project.name,
       layout: {
         ...project.layout,
+        isVerticalLayout: layout.isVerticalLayout,
+        isMaximizedVideo: layout.isMaximizedVideo,
+        isLeftPanelFilled: layout.isLeftPanelFilled,
+        isLeftPanelTopRowFilled: layout.isLeftPanelTopRowFilled,
         panels: {
           ...project.layout.panels,
           leftPanelWidth: horizontalSizes.leftWidth,
@@ -476,42 +614,118 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           leftPanelBottomHeight: verticalSizes.bottomHeight,
         },
       },
-      tracks, activeFileId, mediaFiles: importedFiles, settings,
+      tracks,
+      activeFileId,
+      mediaFiles: importedFiles,
+      settings,
       isSaved: isProjectSaved,
     };
     onProjectUpdate(updatedProject);
-  }, [contentSignature, project, onProjectUpdate, tracks, activeFileId,
-     importedFiles, settings, horizontalSizes, verticalSizes, isProjectSaved]);
+  }, [
+    contentSignature,
+    project,
+    onProjectUpdate,
+    tracks,
+    activeFileId,
+    importedFiles,
+    settings,
+    horizontalSizes,
+    verticalSizes,
+    isProjectSaved,
+    layout,
+  ]);
 
   useEffect(() => {
     onThemeChange(settings.theme);
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    document.documentElement.style.setProperty('--primary', settings.primaryColor);
-    document.documentElement.style.setProperty('--primary-hover', `${settings.primaryColor}E6`);
-  }, [settings, onThemeChange]);
+  }, [settings.theme, onThemeChange]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute(
+      'data-theme',
+      settings.theme === 'system' ? getSystemTheme() : settings.theme,
+    );
+    root.style.setProperty('--primary', settings.primaryColor);
+    root.style.setProperty('--primary-hover', `${settings.primaryColor}E6`);
+  }, [settings.theme, settings.primaryColor]);
+
+  useEffect(() => {
+    if (settings.theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () =>
+      document.documentElement.setAttribute(
+        'data-theme',
+        mq.matches ? 'dark' : 'light',
+      );
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [settings.theme]);
 
   useKeyboardShortcuts(
     [
-      { ...SHORTCUTS.PLAY_PAUSE, handler: () => !isModalOpen && togglePlayPause() },
-      { ...SHORTCUTS.UNDO, handler: () => !isModalOpen && canUndo && undo() },
-      { ...SHORTCUTS.REDO, handler: () => !isModalOpen && canRedo && redo() },
-      { ...SHORTCUTS.REDO_ALT, handler: () => !isModalOpen && canRedo && redo() },
-      { ...SHORTCUTS.SAVE, handler: () => !isModalOpen && handleSaveProject() },
-      { ...SHORTCUTS.SAVE_AS, handler: () => !isModalOpen && handleSaveProjectAs() },
-      { ...SHORTCUTS.NEW_CLIP, handler: () => !isModalOpen && handleNewClip() },
+      {
+        ...SHORTCUTS.PLAY_PAUSE,
+        handler: () => !isModalOpen && togglePlayPause(),
+      },
+      {
+        ...SHORTCUTS.UNDO,
+        handler: () => !isModalOpen && canUndo && undo(),
+      },
+      {
+        ...SHORTCUTS.REDO,
+        handler: () => !isModalOpen && canRedo && redo(),
+      },
+      {
+        ...SHORTCUTS.REDO_ALT,
+        handler: () => !isModalOpen && canRedo && redo(),
+      },
+      {
+        ...SHORTCUTS.SAVE,
+        handler: () => !isModalOpen && handleSaveProject(),
+      },
+      {
+        ...SHORTCUTS.SAVE_AS,
+        handler: () => !isModalOpen && handleSaveProjectAs(),
+      },
+      {
+        ...SHORTCUTS.NEW_CLIP,
+        handler: () => !isModalOpen && handleNewClip(),
+      },
+      {
+        ...SHORTCUTS.COPY,
+        handler: () => {
+          if (isModalOpen || selectedIds.size !== 1) return;
+          copyClipToClipboard([...selectedIds][0]);
+        },
+      },
+      {
+        ...SHORTCUTS.PASTE,
+        handler: () => {
+          if (isModalOpen || !clipboardClip || mediaDuration <= 0) return;
+          pasteClipboardAt(currentTime);
+        },
+      },
+      {
+        ...SHORTCUTS.DELETE,
+        handler: () => {
+          if (isModalOpen || selectedIds.size === 0) return;
+          selectedIds.forEach((id) => wrappedDeleteTimelineItem(id));
+          clearSelection();
+        },
+      },
     ],
     { enabled: true },
   );
 
   useEffect(() => {
-    const handleClickOutside = () =>
+    const onDocClick = () =>
       editor.setContextMenu((prev) => ({ ...prev, visible: false }));
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [editor.setContextMenu]);
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [editor]);
 
   const handleHorizontalResize = useCallback(
-    (updates: Partial<typeof horizontalSizes>) => {
+    (updates: Partial<HorizontalLayoutSizes>) => {
       setHorizontalSizes((prev) => ({ ...prev, ...updates }));
       markAsUnsaved();
     },
@@ -519,12 +733,14 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   );
 
   const handleVerticalResize = useCallback(
-    (updates: Partial<typeof verticalSizes>) => {
+    (updates: Partial<VerticalLayoutSizes>) => {
       setVerticalSizes((prev) => ({ ...prev, ...updates }));
       markAsUnsaved();
     },
     [markAsUnsaved],
   );
+
+  void activeSubTab;
 
   return (
     <ProjectEditorProvider value={contextValue}>
@@ -563,26 +779,24 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             <VerticalLayout
               sizes={verticalSizes}
               onResize={handleVerticalResize}
-              containerRef={containerRef}
               isLeftPanelTopRowFilled={layout.isLeftPanelTopRowFilled}
               isMaximizedVideo={layout.isMaximizedVideo}
               onToggleLeftPanelTopRowFilled={toggleLeftPanelTopRowFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
-              onOpenStageSettingsModal={handleOpenStageSettingsModal}
+              onOpenStageSettingsModal={openStageSettingsModal}
               videoSlotRef={videoSlotRef}
             />
           ) : (
             <HorizontalLayout
               sizes={horizontalSizes}
               onResize={handleHorizontalResize}
-              containerRef={containerRef}
               isLeftPanelFilled={layout.isLeftPanelFilled}
               isMaximizedVideo={layout.isMaximizedVideo}
               onToggleLeftPanelFilled={toggleLeftPanelFilled}
               onToggleMaximizeVideo={toggleMaximizeVideo}
               onContextMenu={handleContextMenu}
-              onOpenStageSettingsModal={handleOpenStageSettingsModal}
+              onOpenStageSettingsModal={openStageSettingsModal}
               videoSlotRef={videoSlotRef}
             />
           )}
@@ -621,6 +835,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
                 handleSeek={handleSeek}
                 videoAspect={videoAspect}
                 isMediaLoaded={isMediaLoaded}
+                onVideoLoadedMetadata={handleVideoLoadedMetadata}
               />
             </div>
           </div>
@@ -632,15 +847,25 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           activeFileId={activeFileId}
         />
 
-        <Modal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} title="About VoxMatch Studio">
+        <Modal
+          isOpen={isAboutModalOpen}
+          onClose={() => setIsAboutModalOpen(false)}
+          title="About VoxMatch Studio"
+        >
           <AboutModalContent />
         </Modal>
 
-        <Modal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} title="Export Project Settings">
+        <Modal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          title="Export Project Settings"
+        >
           <ExportModalContent
             settings={settings}
             handleSettingChange={handleSettingChange}
-            selectSaveLocation={async () => window.electronAPI?.selectSaveLocation?.() ?? null}
+            selectSaveLocation={async () =>
+              window.electronAPI?.selectSaveLocation?.() ?? null
+            }
             file={activeFile || null}
             project={project}
             mediaElementRef={mediaElementRef}
@@ -648,71 +873,51 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           />
         </Modal>
 
-        <Modal isOpen={isPreferencesModalOpen} onClose={() => setIsPreferencesModalOpen(false)} title="Preferences" isSidePanelContent>
-          <div className="flex h-[calc(90vh-100px)]">
-            <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
-              {preferenceSections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() => setActivePreferenceSection(section.id)}
-                  className={`w-full flex items-center p-3 rounded-md text-left ${
-                    activePreferenceSection === section.id
-                      ? 'bg-primary text-white'
-                      : 'text-app-text hover:bg-app-gray-light'
-                  }`}
-                >
-                  <section.icon size={18} className="mr-3" /> {section.name}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 p-6 overflow-y-auto">
-              <SettingsModalContent
-                settings={settings}
-                handleSettingChange={handleSettingChange}
-                activeSection={activePreferenceSection}
-              />
-            </div>
-          </div>
+        <Modal
+          isOpen={isPreferencesModalOpen}
+          onClose={() => setIsPreferencesModalOpen(false)}
+          title="Preferences"
+          isSidePanelContent
+        >
+          <PreferencesPanel
+            activeSection={activePreferenceSection}
+            onSectionChange={setActivePreferenceSection}
+            settings={settings}
+            handleSettingChange={handleSettingChange}
+          />
         </Modal>
 
-        <Modal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} title="Help & Support" isSidePanelContent>
-          <div className="flex h-[calc(90vh-100px)]">
-            <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
-              {helpSections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveHelpSection(section.id)}
-                  className={`w-full flex items-center p-3 rounded-md text-left ${
-                    activeHelpSection === section.id
-                      ? 'bg-primary text-white'
-                      : 'text-app-text hover:bg-app-gray-light'
-                  }`}
-                >
-                  <section.icon size={18} className="mr-3" /> {section.name}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 p-6 overflow-y-auto">
-              <HelpModalContent
-                activeSection={activeHelpSection}
-                openAccordion={openAccordion}
-                toggleAccordion={toggleAccordion}
-              />
-            </div>
-          </div>
+        <Modal
+          isOpen={isHelpModalOpen}
+          onClose={() => setIsHelpModalOpen(false)}
+          title="Help & Support"
+          isSidePanelContent
+        >
+          <HelpPanel
+            activeSection={activeHelpSection}
+            onSectionChange={setActiveHelpSection}
+            openAccordion={openAccordion}
+            toggleAccordion={toggleAccordion}
+          />
         </Modal>
 
-        <Modal isOpen={isFileInfoModalOpen} onClose={() => setIsFileInfoModalOpen(false)} title="File Information">
+        <Modal
+          isOpen={isFileInfoModalOpen}
+          onClose={() => setIsFileInfoModalOpen(false)}
+          title="File Information"
+        >
           <FileInfoModalContent file={selectedFileInfo} />
         </Modal>
 
-        <Modal isOpen={isStageSettingsModalOpen} onClose={() => setIsStageSettingsModalOpen(false)} title="Stage Settings" size="stage">
+        <Modal
+          isOpen={isStageSettingsModalOpen}
+          onClose={() => setIsStageSettingsModalOpen(false)}
+          title="Stage Settings"
+          size="stage"
+        >
           <StageSettingsContent
             stageStyle={stageStyle}
-            setStageStyle={(newStyle) => {
-              setStageStyle(newStyle);
-              markAsUnsaved();
-            }}
+            setStageStyle={wrappedSetStageStyle}
             onClose={() => setIsStageSettingsModalOpen(false)}
           />
         </Modal>
@@ -729,6 +934,94 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
   );
 };
 
+function getSystemTheme(): 'light' | 'dark' {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+const PreferencesPanel: React.FC<{
+  activeSection: string;
+  onSectionChange: (s: string) => void;
+  settings: any;
+  handleSettingChange: (name: string, value: any) => void;
+}> = ({ activeSection, onSectionChange, settings, handleSettingChange }) => {
+  const sections = [
+    { id: 'general', name: 'General' },
+    { id: 'audio-video', name: 'Audio & Video' },
+    { id: 'lyrics-subtitles', name: 'Lyrics & Subtitles' },
+    { id: 'shortcuts', name: 'Shortcuts' },
+  ];
+  return (
+    <div className="flex h-[calc(90vh-100px)]">
+      <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onSectionChange(s.id)}
+            className={`w-full flex items-center p-3 rounded-md text-left ${
+              activeSection === s.id
+                ? 'bg-primary text-white'
+                : 'text-app-text hover:bg-app-gray-light'
+            }`}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 p-6 overflow-y-auto">
+        <SettingsModalContent
+          settings={settings}
+          handleSettingChange={handleSettingChange}
+          activeSection={activeSection}
+        />
+      </div>
+    </div>
+  );
+};
+
+const HelpPanel: React.FC<{
+  activeSection: string;
+  onSectionChange: (s: string) => void;
+  openAccordion: string | null;
+  toggleAccordion: (s: string) => void;
+}> = ({ activeSection, onSectionChange, openAccordion, toggleAccordion }) => {
+  const sections = [
+    { id: 'quick-start', name: 'Quick Start' },
+    { id: 'tutorials', name: 'Tutorials' },
+    { id: 'faq', name: 'FAQ' },
+    { id: 'support', name: 'Support' },
+  ];
+  return (
+    <div className="flex h-[calc(90vh-100px)]">
+      <div className="w-1/4 bg-app-gray-dark border-r border-app-border p-4 space-y-2 overflow-y-auto">
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onSectionChange(s.id)}
+            className={`w-full flex items-center p-3 rounded-md text-left ${
+              activeSection === s.id
+                ? 'bg-primary text-white'
+                : 'text-app-text hover:bg-app-gray-light'
+            }`}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 p-6 overflow-y-auto">
+        <HelpModalContent
+          activeSection={activeSection}
+          openAccordion={openAccordion}
+          toggleAccordion={toggleAccordion}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const ProjectEditor: React.FC<ProjectEditorProps> = (props) => (
-  <ProjectEditorContent {...props} />
+  <EditorErrorBoundary>
+    <ProjectEditorContent {...props} />
+  </EditorErrorBoundary>
 );

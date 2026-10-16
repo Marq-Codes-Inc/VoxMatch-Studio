@@ -1,14 +1,10 @@
-// src/hooks/useProjectEditor.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { VoxMatchProject } from '../types/project';
 import { ImportedMediaFile, LyricLine } from '../types/types';
 import { useMediaPlayback } from './useMediaPlayback';
 import { useProjectState } from './useProjectState';
 import { generateId } from '../utils/utils';
-import {
-  parseSubtitleFile,
-  isSubtitleFileName,
-} from '../utils/subtitleImport';
+import { parseSubtitleFile, isSubtitleFileName } from '../utils/subtitleImport';
 import type { ImportSubtitleResult } from '../utils/subtitleImport';
 import { extractVideoPoster } from '../utils/mediaPoster';
 
@@ -97,7 +93,7 @@ export function useProjectEditor(
     importedFiles,
     importClips,
     switchActiveFile,
-    importFiles,
+    updateFileAfterLoad,
   } = projectState;
 
   const { loadMediaIntoTimeline, cleanupMedia, currentTime } = mediaPlayback;
@@ -108,7 +104,6 @@ export function useProjectEditor(
 
   const onFileActivate = useCallback(
     async (file: ImportedMediaFile) => {
-      console.log('🎯 Activating file:', file.name);
       setLoadingFileId(file.id);
       switchActiveFile(file.id);
       try {
@@ -135,12 +130,9 @@ export function useProjectEditor(
           ...loadedFile,
           posterDataUrl: posterDataUrl ?? null,
         };
-        projectState.updateFileAfterLoad(finalFile);
+        updateFileAfterLoad(finalFile);
         markAsUnsaved();
         return finalFile;
-      } catch (error) {
-        console.error('Failed to activate media file:', error);
-        throw error;
       } finally {
         setLoadingFileId(null);
       }
@@ -150,22 +142,19 @@ export function useProjectEditor(
       switchActiveFile,
       loadMediaIntoTimeline,
       markAsUnsaved,
-      projectState,
+      updateFileAfterLoad,
     ],
   );
 
   const hasAutoLoadedRef = useRef(false);
   useEffect(() => {
-    if (!hasAutoLoadedRef.current && initialProject.activeFileId) {
-      hasAutoLoadedRef.current = true;
-      const fileToLoad = importedFiles.find(
-        (f) => f.id === initialProject.activeFileId,
+    if (hasAutoLoadedRef.current || !initialProject.activeFileId) return;
+    hasAutoLoadedRef.current = true;
+    const file = importedFiles.find((f) => f.id === initialProject.activeFileId);
+    if (file && !file.loaded && (file.path || file.url)) {
+      onFileActivate(file).catch((err) =>
+        console.error('Failed to auto-load active media file:', err),
       );
-      if (fileToLoad && !fileToLoad.loaded && (fileToLoad.path || fileToLoad.url)) {
-        onFileActivate(fileToLoad).catch((err) =>
-          console.error('Failed to auto-load active media file:', err),
-        );
-      }
     }
   }, [initialProject.activeFileId, importedFiles, onFileActivate]);
 
@@ -181,12 +170,13 @@ export function useProjectEditor(
     if (!source) return;
     extractVideoPoster(source, { position: 0.1, width: 640, quality: 0.75 })
       .then((poster) => {
-        if (!poster) return;
-        projectState.updateFileAfterLoad({ ...active, posterDataUrl: poster });
-        markAsUnsaved();
+        if (poster) {
+          updateFileAfterLoad({ ...active, posterDataUrl: poster });
+          markAsUnsaved();
+        }
       })
       .catch((err) => console.warn('Poster backfill failed:', err));
-  }, [importedFiles, activeFileId, projectState, markAsUnsaved]);
+  }, [importedFiles, activeFileId, updateFileAfterLoad, markAsUnsaved]);
 
   const importSubtitleFile = useCallback(
     async (
@@ -196,7 +186,7 @@ export function useProjectEditor(
       try {
         const content = await file.text();
         const parsed = parseSubtitleFile(file.name, content);
-        if (parsed.clips.length === 0) {
+        if (!parsed.clips.length) {
           alert(`No usable clips were found in "${file.name}".`);
           return null;
         }
@@ -245,8 +235,8 @@ export function useProjectEditor(
         }));
 
         setImportedFiles((prev) => {
-          const existingNames = new Set(prev.map((f) => f.name));
-          return [...prev, ...newFiles.filter((f) => !existingNames.has(f.name))];
+          const existing = new Set(prev.map((f) => f.name));
+          return [...prev, ...newFiles.filter((f) => !existing.has(f.name))];
         });
         markAsUnsaved();
       }
@@ -274,8 +264,8 @@ export function useProjectEditor(
       targetElement?: HTMLElement,
     ) => {
       e.preventDefault();
-      let x = 0,
-        y = 0;
+      let x = 0;
+      let y = 0;
       if ('clientX' in e) {
         x = (e as React.MouseEvent).clientX;
         y = (e as React.MouseEvent).clientY;
@@ -349,8 +339,6 @@ export function useProjectEditor(
       .padStart(3, '0')}`;
   }, []);
 
-  void importFiles;
-
   return {
     projectState,
     mediaPlayback,
@@ -358,19 +346,31 @@ export function useProjectEditor(
     contextMenu,
     setContextMenu,
     layout,
-    isPreferencesModalOpen, setIsPreferencesModalOpen,
-    isAboutModalOpen, setIsAboutModalOpen,
-    isHelpModalOpen, setIsHelpModalOpen,
-    isExportModalOpen, setIsExportModalOpen,
-    isFileInfoModalOpen, setIsFileInfoModalOpen,
-    isStageSettingsModalOpen, setIsStageSettingsModalOpen,
-    selectedFileInfo, setSelectedFileInfo,
-    activePreferenceSection, setActivePreferenceSection,
-    activeHelpSection, setActiveHelpSection,
-    openAccordion, toggleAccordion,
+    isPreferencesModalOpen,
+    setIsPreferencesModalOpen,
+    isAboutModalOpen,
+    setIsAboutModalOpen,
+    isHelpModalOpen,
+    setIsHelpModalOpen,
+    isExportModalOpen,
+    setIsExportModalOpen,
+    isFileInfoModalOpen,
+    setIsFileInfoModalOpen,
+    isStageSettingsModalOpen,
+    setIsStageSettingsModalOpen,
+    selectedFileInfo,
+    setSelectedFileInfo,
+    activePreferenceSection,
+    setActivePreferenceSection,
+    activeHelpSection,
+    setActiveHelpSection,
+    openAccordion,
+    toggleAccordion,
     markAsUnsaved,
-    toggleVerticalLayout, toggleMaximizeVideo,
-    toggleLeftPanelFilled, toggleLeftPanelTopRowFilled,
+    toggleVerticalLayout,
+    toggleMaximizeVideo,
+    toggleLeftPanelFilled,
+    toggleLeftPanelTopRowFilled,
     onFileActivate,
     handleNewClip,
     handleFilesDropped,

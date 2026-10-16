@@ -12,7 +12,6 @@ import {
 import type { ImportSubtitleResult } from '../utils/subtitleImport';
 
 export interface ProjectEditorContextValue {
-  //  Runtime / playback 
   isPlaying: boolean;
   currentTime: number;
   volume: number;
@@ -23,7 +22,6 @@ export interface ProjectEditorContextValue {
   audioElementRef: React.RefObject<HTMLAudioElement>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
 
-  // Editor view 
   activeLeftPanelTab: 'subtitles' | 'lyrics';
   activeSubTab: 'edit' | 'styles' | 'templates';
   layout: {
@@ -33,7 +31,6 @@ export interface ProjectEditorContextValue {
     isLeftPanelTopRowFilled: boolean;
   };
 
-  // Per-file track data 
   tracks: Record<string, FileTrack>;
   lyrics: LyricLine[];
   subtitles: LyricLine[];
@@ -41,7 +38,6 @@ export interface ProjectEditorContextValue {
   markers: TimelineMarker[];
   zoom: number;
 
-  // Text/stage styling 
   settings: AppSettings;
   stageStyle: StageStyle;
   lyricTextStyle: TextStyle;
@@ -49,36 +45,30 @@ export interface ProjectEditorContextValue {
   currentSubtitleText: string | null;
   subtitleLanguage: string;
 
-  // Selection 
   selectedSubtitleIds: Set<string>;
   selectedLyricIds: Set<string>;
   selectedIds: Set<string>;
   clipboardClip: LyricLine | null;
 
-  // Media files 
   importedFiles: ImportedMediaFile[];
   activeFileId: string | null;
   activeFile: ImportedMediaFile | null;
   loadingFileId: string | null;
 
-  // History
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
   redo: () => void;
 
-  // Playback actions
   setIsPlaying: (value: boolean) => void;
   setVolume: (value: number) => void;
   handleSeek: (time: number) => void;
   togglePlayPause: () => void;
 
-  // Editor view actions
   setActiveLeftPanelTab: (tab: 'subtitles' | 'lyrics') => void;
   setActiveSubTab: (tab: 'edit' | 'styles' | 'templates') => void;
   setZoom: (value: number) => void;
 
-  // Track edits 
   handleLyricChange: (
     id: string,
     field: 'text' | 'startTime' | 'endTime',
@@ -95,22 +85,22 @@ export interface ProjectEditorContextValue {
   handleDeleteSubtitle: (id: string) => void;
   handleMergeSubtitles: () => void;
   handleSplitSubtitle: () => void;
+  handleSplitSubtitleAt: (id: string, t: number) => void;
   handleBatchAddLyrics: (newLyrics: Omit<LyricLine, 'id'>[]) => void;
   handleBatchAddSubtitles: (newSubtitles: Omit<LyricLine, 'id'>[]) => void;
 
-  // Selection helpers
   toggleSubtitleSelection: (id: string) => void;
   toggleLyricSelection: (id: string) => void;
   toggleTimelineSelection: (id: string, e?: React.MouseEvent) => void;
+  clearSelection: () => void;
+  selectAll: () => void;
 
-  // Styling
   handleSettingChange: (name: string, value: string | boolean | number) => void;
   setStageStyle: React.Dispatch<React.SetStateAction<StageStyle>>;
   setLyricTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
   setSubtitleTextStyle: React.Dispatch<React.SetStateAction<TextStyle>>;
   setSubtitleLanguage: (lang: string) => void;
 
-  // Timeline operations
   updateTimelineData: (id: string, newStart: number, newEnd: number) => void;
   deleteTimelineItem: (id: string) => void;
   addTimelineItem: (item: LyricLine) => void;
@@ -118,14 +108,11 @@ export interface ProjectEditorContextValue {
   splitTimelineItem: (id: string, splitTime: number) => void;
   mergeTimelineItems: (ids: string[]) => void;
 
-  // Markers
   addMarker: (time: number, label: string) => void;
 
-  // Clipboard
   copyClipToClipboard: (id: string) => void;
   pasteClipboardAt: (time: number) => void;
 
-  // Files
   onFileActivate: (file: ImportedMediaFile) => Promise<void>;
   handleOpenFile: () => Promise<void>;
   handleFilesDropped: (files: File[]) => Promise<void>;
@@ -133,28 +120,29 @@ export interface ProjectEditorContextValue {
   handleNewClip: () => void;
   switchActiveFile: (id: string) => void;
 
-  // Misc
   formatTime: (seconds: number) => string;
   markAsUnsaved: () => void;
   pushHistory: (label: string) => void;
+
   isVuOverlayEnabled: boolean;
   toggleVuOverlay: () => void;
+
   importSubtitleFile: (
     file: File,
     options?: { replace?: boolean },
   ) => Promise<ImportSubtitleResult | null>;
+
+  openStageSettingsModal: () => void;
 }
 
-const ProjectEditorContext = createContext<ProjectEditorContextValue | null>(
-  null,
-);
+const ProjectEditorContext = createContext<ProjectEditorContextValue | null>(null);
 
 export const useProjectEditor = () => {
-  const context = useContext(ProjectEditorContext);
-  if (!context) {
+  const ctx = useContext(ProjectEditorContext);
+  if (!ctx) {
     throw new Error('useProjectEditor must be used within ProjectEditorProvider');
   }
-  return context;
+  return ctx;
 };
 
 export const ProjectEditorProvider: React.FC<{

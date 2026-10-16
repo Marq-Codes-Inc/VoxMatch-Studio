@@ -1,26 +1,14 @@
 // src/components/layout/HorizontalLayout.tsx
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { ImportMediaPanel } from '../panels/ImportMediaPanel';
 import { LyricsSubtitlesPanel } from '../panels/SubtitlesLyricsEditPanel';
 import { TimelinePanel } from '../panels/TimelinePanel';
 import { ResizeHandle } from './ResizeHandle';
+import { usePanelResize } from './usePanelResize';
 import { ImportedMediaFile } from '../../types/types';
 
-type ResizeType = 'left-width' | 'video-height' | 'left-panel-horizontal';
-
-interface ResizeState {
-  type: ResizeType;
-  startX: number;
-  startY: number;
-  initialLeftWidth: number;
-  initialVideoHeight: number;
-  initialImportHeight: number;
-  containerWidth: number;
-  containerHeight: number;
-}
-
-interface HorizontalLayoutSizes {
+export interface HorizontalLayoutSizes {
   leftWidth: number;
   videoHeight: number;
   importHeight: number;
@@ -29,7 +17,6 @@ interface HorizontalLayoutSizes {
 interface HorizontalLayoutProps {
   sizes: HorizontalLayoutSizes;
   onResize: (updates: Partial<HorizontalLayoutSizes>) => void;
-  containerRef: React.RefObject<HTMLDivElement>;
   isLeftPanelFilled: boolean;
   isMaximizedVideo: boolean;
   onToggleLeftPanelFilled: () => void;
@@ -39,106 +26,72 @@ interface HorizontalLayoutProps {
     file: ImportedMediaFile,
     targetElement?: HTMLElement,
   ) => void;
-  onDragStart?: (e: React.DragEvent, file: ImportedMediaFile) => void;
   onOpenStageSettingsModal?: () => void;
   videoSlotRef: React.RefObject<HTMLDivElement>;
 }
 
+type ResizeType = 'left-width' | 'video-height' | 'left-panel-horizontal';
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
+const NOOP_CONTEXT_MENU = () => {};
+
 export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
   sizes,
   onResize,
-  containerRef,
   isLeftPanelFilled,
   isMaximizedVideo,
   onToggleLeftPanelFilled,
   onToggleMaximizeVideo,
   onContextMenu,
-  onDragStart,
-  onOpenStageSettingsModal = () => {},
+  onOpenStageSettingsModal,
   videoSlotRef,
 }) => {
   const context = useProjectEditor();
+  const rootRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
-  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
 
-  const handleContextMenu = onContextMenu || (() => {});
-  const handleDragStart = onDragStart || (() => {});
-
-  const startResize = useCallback(
-    (type: ResizeType, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      setResizeState({
-        type,
-        startX: e.clientX,
-        startY: e.clientY,
-        initialLeftWidth: sizes.leftWidth,
-        initialVideoHeight: sizes.videoHeight,
-        initialImportHeight: sizes.importHeight,
-        containerWidth: rect.width,
-        containerHeight: rect.height,
-      });
-      document.body.style.cursor =
-        type === 'left-width' ? 'col-resize' : 'row-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [sizes, containerRef],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!resizeState) return;
-      const {
-        type, startX, startY,
-        initialLeftWidth, initialVideoHeight, initialImportHeight,
-        containerWidth, containerHeight,
-      } = resizeState;
-      const deltaX = e.clientX - startX;
-      const deltaY = e.clientY - startY;
+  const { startResize } = usePanelResize<ResizeType, HorizontalLayoutSizes>({
+    rootRef,
+    sizes,
+    onResize,
+    cursorFor: (type) => (type === 'left-width' ? 'col-resize' : 'row-resize'),
+    computeUpdates: ({
+      type,
+      deltaX,
+      deltaY,
+      initialSizes,
+      rootWidth,
+      rootHeight,
+    }) => {
       const updates: Partial<HorizontalLayoutSizes> = {};
-      switch (type) {
-        case 'left-width': {
-          const deltaPercent = (deltaX / containerWidth) * 100;
-          updates.leftWidth = Math.min(60, Math.max(20, initialLeftWidth + deltaPercent));
-          break;
-        }
-        case 'video-height': {
-          const deltaPercent = (deltaY / containerHeight) * 100;
-          updates.videoHeight = Math.min(80, Math.max(20, initialVideoHeight + deltaPercent));
-          break;
-        }
-        case 'left-panel-horizontal': {
-          if (!leftPanelRef.current) return;
-          const leftPanelRect = leftPanelRef.current.getBoundingClientRect();
-          const deltaPercent = (deltaY / leftPanelRect.height) * 100;
-          updates.importHeight = Math.min(70, Math.max(20, initialImportHeight + deltaPercent));
-          break;
-        }
+      if (type === 'left-width') {
+        updates.leftWidth = clamp(
+          initialSizes.leftWidth + (deltaX / rootWidth) * 100,
+          20,
+          60,
+        );
+      } else if (type === 'video-height') {
+        updates.videoHeight = clamp(
+          initialSizes.videoHeight + (deltaY / rootHeight) * 100,
+          20,
+          80,
+        );
+      } else if (type === 'left-panel-horizontal') {
+        const panel = leftPanelRef.current;
+        if (!panel) return {};
+        const h = panel.getBoundingClientRect().height;
+        if (h <= 0) return {};
+        updates.importHeight = clamp(
+          initialSizes.importHeight + (deltaY / h) * 100,
+          20,
+          70,
+        );
       }
-      if (Object.keys(updates).length > 0) onResize(updates);
+      return updates;
     },
-    [resizeState, onResize],
-  );
-
-  const stopResize = useCallback(() => {
-    setResizeState(null);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  }, []);
-
-  useEffect(() => {
-    if (resizeState) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', stopResize);
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', stopResize);
-    };
-  }, [resizeState, handleMouseMove, stopResize]);
+  });
 
   const importHeight = sizes.importHeight || 40;
   const lyricsHeight = isLeftPanelFilled ? 100 : 100 - importHeight;
@@ -147,18 +100,29 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
     async (e: React.DragEvent) => {
       e.preventDefault();
       const fileId = e.dataTransfer.getData('text/plain');
-      const fileToLoad = context.importedFiles.find((f) => f.id === fileId);
-      if (fileToLoad) await context.onFileActivate(fileToLoad);
+      const file = context.importedFiles.find((f) => f.id === fileId);
+      if (file) await context.onFileActivate(file);
     },
-    [context.importedFiles, context.onFileActivate],
+    [context],
   );
 
   return (
-    <div className="flex flex-row w-full h-full p-2 gap-2">
+    <div
+      ref={rootRef}
+      className="relative z-20 flex flex-row w-full h-full p-2"
+    >
+      {/* Left column — fixed width, never shrinks. */}
       <div
         ref={leftPanelRef}
-        className={`flex flex-col gap-2 min-h-0 ${isMaximizedVideo ? 'hidden' : ''}`}
-        style={{ width: `${sizes.leftWidth}%` }}
+        className={`flex flex-col min-h-0 ${
+          isMaximizedVideo ? 'hidden' : ''
+        }`}
+        style={{
+          width: `${sizes.leftWidth}%`,
+          flexShrink: 0,
+          flexGrow: 0,
+          minWidth: 0,
+        }}
       >
         {!isLeftPanelFilled && (
           <>
@@ -166,10 +130,9 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
               <ImportMediaPanel
                 importedFiles={context.importedFiles}
                 activeFileId={context.activeFileId}
-                loadingFileId={context.loadingFileId || undefined}
+                loadingFileId={context.loadingFileId}
                 handleOpenFile={context.handleOpenFile}
-                handleContextMenu={handleContextMenu}
-                handleDragStart={handleDragStart}
+                handleContextMenu={onContextMenu ?? NOOP_CONTEXT_MENU}
                 onFileActivate={context.onFileActivate}
                 onFilesDropped={context.handleFilesDropped}
               />
@@ -183,43 +146,12 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
 
         <div className="flex-1 min-h-0" style={{ height: `${lyricsHeight}%` }}>
           <LyricsSubtitlesPanel
-            activeLeftPanelTab={context.activeLeftPanelTab}
-            setActiveLeftPanelTab={context.setActiveLeftPanelTab}
-            activeSubTab={context.activeSubTab}
-            setActiveSubTab={context.setActiveSubTab}
-            lyrics={context.lyrics}
-            subtitles={context.subtitles}
-            handleLyricChange={context.handleLyricChange}
-            handleSubtitleChange={context.handleSubtitleChange}
-            handleAddSubtitle={context.handleAddSubtitle}
-            handleAddLyric={context.handleAddLyric}
-            handleDeleteSubtitle={context.handleDeleteSubtitle}
-            handleDeleteLyric={context.handleDeleteLyric}
-            handleMergeSubtitles={context.handleMergeSubtitles}
-            handleSplitSubtitle={context.handleSplitSubtitle}
-            formatTime={context.formatTime}
             isLeftPanelFilled={isLeftPanelFilled}
             setIsLeftPanelFilled={onToggleLeftPanelFilled}
             isVerticalLayout={false}
             isLeftPanelTopRowFilled={false}
             setIsLeftPanelTopRowFilled={() => {}}
-            selectedSubtitleIds={context.selectedSubtitleIds}
-            toggleSubtitleSelection={context.toggleSubtitleSelection}
-            stageStyle={context.stageStyle}
-            setStageStyle={context.setStageStyle}
-            lyricTextStyle={context.lyricTextStyle}
-            setLyricTextStyle={context.setLyricTextStyle}
-            subtitleTextStyle={context.subtitleTextStyle}
-            setSubtitleTextStyle={context.setSubtitleTextStyle}
-            subtitleLanguage={context.subtitleLanguage}
-            setSubtitleLanguage={context.setSubtitleLanguage}
             onOpenStageSettingsModal={onOpenStageSettingsModal}
-            handleBatchAddLyrics={context.handleBatchAddLyrics}
-            handleBatchAddSubtitles={context.handleBatchAddSubtitles}
-            currentTime={context.currentTime}
-            mediaDuration={context.mediaDuration}
-            settings={context.settings}
-            onImportSubtitleFile={context.importSubtitleFile}
           />
         </div>
       </div>
@@ -231,10 +163,17 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
         />
       )}
 
-      <div className="flex flex-col flex-1 gap-2 min-h-0">
+      {/* Right column — grows to fill, allowed to shrink below content. */}
+      <div
+        className="flex flex-col flex-1 min-h-0"
+        style={{ minWidth: 0, flexShrink: 1, flexBasis: 0 }}
+      >
         <div
           ref={videoSlotRef}
-          style={{ height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%` }}
+          style={{
+            height: isMaximizedVideo ? '100%' : `${sizes.videoHeight}%`,
+            flexShrink: 0,
+          }}
           className="min-h-0"
         />
 
@@ -246,45 +185,9 @@ export const HorizontalLayout: React.FC<HorizontalLayoutProps> = ({
             />
             <div
               className="min-h-0 overflow-hidden"
-              style={{ height: `${100 - sizes.videoHeight}%` }}
+              style={{ height: `${100 - sizes.videoHeight}%`, minWidth: 0 }}
             >
-              <TimelinePanel
-                currentTime={context.currentTime}
-                mediaDuration={context.mediaDuration}
-                isMediaLoaded={context.isMediaLoaded}
-                formatTime={context.formatTime}
-                handleSeek={context.handleSeek}
-                handleDragOver={(e) => e.preventDefault()}
-                handleDrop={handleTimelineDrop}
-                activeFile={context.activeFile}
-                volume={context.volume}
-                setVolume={context.setVolume}
-                zoom={context.zoom}
-                setZoom={context.setZoom}
-                timelineData={context.timelineData}
-                updateTimelineData={context.updateTimelineData}
-                deleteTimelineItem={context.deleteTimelineItem}
-                selectedIds={context.selectedIds}
-                toggleSelection={context.toggleTimelineSelection}
-                undo={context.undo}
-                redo={context.redo}
-                canUndo={context.canUndo}
-                canRedo={context.canRedo}
-                snapToGrid={context.settings.snapToGrid}
-                toggleSnapToGrid={() =>
-                  context.handleSettingChange('snapToGrid', !context.settings.snapToGrid)
-                }
-                addMarker={context.addMarker}
-                markers={context.markers}
-                analyserRef={context.analyserRef}
-                isPlaying={context.isPlaying}
-                waveformColor={context.settings.waveformColor}
-                onClearTimelineAll={context.handleClearTimelineAll}
-                isVuOverlayEnabled={context.isVuOverlayEnabled}
-                onToggleVuOverlay={context.toggleVuOverlay}
-                splitTimelineItem={context.splitTimelineItem}
-                mergeTimelineItems={context.mergeTimelineItems}
-              />
+              <TimelinePanel onDrop={handleTimelineDrop} />
             </div>
           </>
         )}

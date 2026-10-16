@@ -1,6 +1,5 @@
 // src/components/panels/TimelinePanel.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { LyricLine, ImportedMediaFile, TimelineMarker } from '../../types/types';
 import { useDragClip } from '../../hooks/useDragClip';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 import { TimelineHeader } from './timeline/TimelineHeader';
@@ -14,84 +13,18 @@ import { useTimelineScrub } from './timeline/useTimelineScrub';
 import { useAutoScrollPlayhead } from './timeline/useTimelineScroll';
 import type { TimelineContextMenuState } from './timeline/types';
 
-export interface TimelinePanelProps {
-  currentTime: number;
-  mediaDuration: number;
-  isMediaLoaded: boolean;
-  formatTime: (sec: number) => string;
-  handleSeek: (time: number) => void;
-  handleDragOver: (e: React.DragEvent) => void;
-  handleDrop: (e: React.DragEvent) => void;
-  activeFile: ImportedMediaFile | null;
-  volume: number;
-  setVolume: (vol: number) => void;
-  zoom: number;
-  setZoom: (zoom: number) => void;
-  timelineData: LyricLine[];
-  updateTimelineData: (id: string, newStart: number, newEnd: number) => void;
-  deleteTimelineItem: (id: string) => void;
-  selectedIds: Set<string>;
-  toggleSelection: (id: string, e: React.MouseEvent) => void;
-  undo: () => void;
-  redo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  snapToGrid: boolean;
-  toggleSnapToGrid: () => void;
-  addMarker: (time: number, label: string) => void;
-  markers: TimelineMarker[];
-  analyserRef: React.MutableRefObject<AnalyserNode | null>;
-  isPlaying?: boolean;
-  waveformColor: string;
-  onClearTimelineAll?: () => void;
-  isVuOverlayEnabled: boolean;
-  onToggleVuOverlay: () => void;
-  splitTimelineItem: (id: string, splitTime: number) => void;
-  mergeTimelineItems: (ids: string[]) => void;
+interface TimelinePanelProps {
+  onDrop?: (e: React.DragEvent) => void;
 }
 
-export const TimelinePanel: React.FC<TimelinePanelProps> = ({
-  currentTime,
-  mediaDuration,
-  isMediaLoaded,
-  formatTime,
-  handleSeek,
-  handleDragOver,
-  handleDrop,
-  activeFile,
-  volume,
-  setVolume,
-  zoom,
-  setZoom,
-  timelineData,
-  updateTimelineData,
-  deleteTimelineItem,
-  selectedIds,
-  toggleSelection,
-  undo,
-  redo,
-  canUndo,
-  canRedo,
-  snapToGrid,
-  toggleSnapToGrid,
-  addMarker,
-  markers,
-  analyserRef,
-  isPlaying,
-  waveformColor,
-  onClearTimelineAll,
-  isVuOverlayEnabled,
-  onToggleVuOverlay,
-  splitTimelineItem,
-  mergeTimelineItems,
-}) => {
+export const TimelinePanel: React.FC<TimelinePanelProps> = ({ onDrop }) => {
   const ctx = useProjectEditor();
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const lastVolume = useRef(volume);
+  const lastVolume = useRef(ctx.volume);
   const [contextMenu, setContextMenu] = useState<TimelineContextMenuState>({
     visible: false,
     x: 0,
@@ -99,39 +32,42 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
   });
 
   const { waveformRef, clear: clearWaveform } = useTimelineWaveform(
-    activeFile,
-    isMediaLoaded,
-    waveformColor,
+    ctx.activeFile,
+    ctx.isMediaLoaded,
+    ctx.settings.waveformColor,
     innerRef,
   );
 
   const { onMouseDown: onTimelineMouseDown } = useTimelineScrub(
     scrollRef,
     innerRef,
-    mediaDuration,
-    isMediaLoaded,
-    handleSeek,
+    ctx.mediaDuration,
+    ctx.isMediaLoaded,
+    ctx.handleSeek,
   );
 
   useAutoScrollPlayhead(
     scrollRef,
     innerRef,
-    currentTime,
-    mediaDuration,
-    zoom,
-    isMediaLoaded,
+    ctx.currentTime,
+    ctx.mediaDuration,
+    ctx.zoom,
+    ctx.isMediaLoaded,
   );
 
-  const { startDrag } = useDragClip(mediaDuration, snapToGrid, updateTimelineData);
+  const { startDrag } = useDragClip(
+    ctx.mediaDuration,
+    ctx.settings.snapToGrid,
+    ctx.updateTimelineData,
+  );
 
   useEffect(() => {
-    if (!scrollRef.current) return;
-    const updateWidth = () => {
-      if (scrollRef.current) setContainerWidth(scrollRef.current.clientWidth);
-    };
+    const el = scrollRef.current;
+    if (!el) return;
+    const updateWidth = () => setContainerWidth(el.clientWidth);
     updateWidth();
     const ro = new ResizeObserver(updateWidth);
-    ro.observe(scrollRef.current);
+    ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
@@ -149,69 +85,33 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
   }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target && target.isContentEditable)
-      ) {
-        return;
-      }
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod || e.shiftKey || e.altKey) return;
-
-      if (e.key.toLowerCase() === 'c') {
-        if (selectedIds.size !== 1) return;
-        const id = Array.from(selectedIds)[0];
-        e.preventDefault();
-        e.stopPropagation();
-        ctx.copyClipToClipboard(id);
-        console.log('[timeline clipboard] copied', id);
-        return;
-      }
-      if (e.key.toLowerCase() === 'v') {
-        if (!ctx.clipboardClip) return;
-        e.preventDefault();
-        e.stopPropagation();
-        ctx.pasteClipboardAt(currentTime);
-        console.log('[timeline clipboard] pasted at', currentTime.toFixed(2));
-      }
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [selectedIds, currentTime, ctx]);
-
-  useEffect(() => {
-    if (volume > 0 && isMuted) setIsMuted(false);
-  }, [volume, isMuted]);
+    if (ctx.volume > 0 && isMuted) setIsMuted(false);
+  }, [ctx.volume, isMuted]);
 
   const toggleMute = useCallback(() => {
-    if (isMuted) setVolume(lastVolume.current);
+    if (isMuted) ctx.setVolume(lastVolume.current);
     else {
-      lastVolume.current = volume;
-      setVolume(0);
+      lastVolume.current = ctx.volume;
+      ctx.setVolume(0);
     }
     setIsMuted((v) => !v);
-  }, [isMuted, setVolume, volume]);
+  }, [isMuted, ctx]);
 
   const handleClearTimeline = useCallback(() => {
     clearWaveform();
     setContextMenu({ visible: false, x: 0, y: 0 });
-    if (onClearTimelineAll) onClearTimelineAll();
-    else timelineData.forEach((item) => deleteTimelineItem(item.id));
-  }, [clearWaveform, onClearTimelineAll, timelineData, deleteTimelineItem]);
+    ctx.handleClearTimelineAll();
+  }, [clearWaveform, ctx]);
 
   const openContextMenu = useCallback(
     (e: React.MouseEvent, clipId?: string) => {
       e.preventDefault();
       e.stopPropagation();
-      let timeAtClick = currentTime;
-      if (innerRef.current && mediaDuration > 0) {
+      let timeAtClick = ctx.currentTime;
+      if (innerRef.current && ctx.mediaDuration > 0) {
         const rect = innerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        timeAtClick = (x / rect.width) * mediaDuration;
+        timeAtClick = (x / rect.width) * ctx.mediaDuration;
       }
       setContextMenu({
         visible: true,
@@ -221,7 +121,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
         timeAtClick,
       });
     },
-    [currentTime, mediaDuration],
+    [ctx.currentTime, ctx.mediaDuration],
   );
 
   const closeContextMenu = useCallback(
@@ -231,64 +131,49 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
 
   const handleCopy = useCallback(
     (clipId?: string) => {
-      const id = clipId || (selectedIds.size > 0 ? Array.from(selectedIds)[0] : null);
+      const id =
+        clipId || (ctx.selectedIds.size > 0 ? [...ctx.selectedIds][0] : null);
       if (id) ctx.copyClipToClipboard(id);
     },
-    [selectedIds, ctx],
+    [ctx],
   );
 
   const handleDuplicate = useCallback(
     (clipId?: string) => {
-      const id = clipId || (selectedIds.size > 0 ? Array.from(selectedIds)[0] : null);
+      const id =
+        clipId || (ctx.selectedIds.size > 0 ? [...ctx.selectedIds][0] : null);
       if (id) ctx.duplicateTimelineItem(id);
     },
-    [selectedIds, ctx],
+    [ctx],
   );
 
   const handlePaste = useCallback(
     (specificTime?: number) => {
-      ctx.pasteClipboardAt(specificTime !== undefined ? specificTime : currentTime);
+      ctx.pasteClipboardAt(
+        specificTime !== undefined ? specificTime : ctx.currentTime,
+      );
     },
-    [ctx, currentTime],
+    [ctx],
   );
 
   const handleSplit = useCallback(
     (clipId?: string) => {
-      if (clipId) splitTimelineItem(clipId, currentTime);
+      if (clipId) ctx.splitTimelineItem(clipId, ctx.currentTime);
     },
-    [splitTimelineItem, currentTime],
+    [ctx],
   );
 
   const handleMerge = useCallback(() => {
-    if (selectedIds.size >= 2) mergeTimelineItems(Array.from(selectedIds));
-  }, [selectedIds, mergeTimelineItems]);
+    if (ctx.selectedIds.size >= 2) ctx.mergeTimelineItems([...ctx.selectedIds]);
+  }, [ctx]);
 
   const handleDelete = useCallback(
     (clipId?: string) => {
-      if (clipId) deleteTimelineItem(clipId);
-      else selectedIds.forEach((id) => deleteTimelineItem(id));
+      if (clipId) ctx.deleteTimelineItem(clipId);
+      else ctx.selectedIds.forEach((id) => ctx.deleteTimelineItem(id));
     },
-    [deleteTimelineItem, selectedIds],
+    [ctx],
   );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target as HTMLElement)?.isContentEditable
-      ) {
-        return;
-      }
-      if (e.key === 'Delete' && selectedIds.size > 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDelete();
-      }
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [selectedIds, handleDelete]);
 
   const handleStartDrag = useCallback(
     (
@@ -301,87 +186,98 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
       isDuplicate?: boolean,
     ) => {
       e.stopPropagation();
-      if (isDuplicate && type === 'body') ctx.duplicateTimelineItem(id, startTime + 0.2);
-      else startDrag(id, type, e, startTime, endTime, timelineWidth);
+      if (isDuplicate && type === 'body') {
+        ctx.duplicateTimelineItem(id, startTime + 0.2);
+      } else {
+        startDrag(id, type, e, startTime, endTime, timelineWidth);
+      }
     },
     [ctx, startDrag],
   );
 
   const handleZoomChange = (newZoom: number) => {
-    if (!scrollRef.current || !innerRef.current || mediaDuration === 0 || !isMediaLoaded) {
-      setZoom(newZoom);
-      return;
-    }
     const sc = scrollRef.current;
     const inner = innerRef.current;
-    const playheadPos = (currentTime / mediaDuration) * inner.scrollWidth;
+    if (!sc || !inner || ctx.mediaDuration === 0 || !ctx.isMediaLoaded) {
+      ctx.setZoom(newZoom);
+      return;
+    }
+    const playheadPos = (ctx.currentTime / ctx.mediaDuration) * inner.scrollWidth;
     const scrollLeftBefore = sc.scrollLeft;
     const offset = playheadPos - scrollLeftBefore;
 
-    setZoom(newZoom);
+    ctx.setZoom(newZoom);
 
     requestAnimationFrame(() => {
-      if (!innerRef.current || !scrollRef.current) return;
       const newInner = innerRef.current;
       const newSc = scrollRef.current;
-      const newPlayheadPos = (currentTime / mediaDuration) * newInner.scrollWidth;
-      if (isPlaying) newSc.scrollLeft = newPlayheadPos - offset;
-      else newSc.scrollLeft = (scrollLeftBefore / inner.scrollWidth) * newInner.scrollWidth;
+      if (!newInner || !newSc) return;
+      const newPlayheadPos =
+        (ctx.currentTime / ctx.mediaDuration) * newInner.scrollWidth;
+      newSc.scrollLeft = ctx.isPlaying
+        ? newPlayheadPos - offset
+        : (scrollLeftBefore / inner.scrollWidth) * newInner.scrollWidth;
     });
   };
 
-  const handleLocalDragOver = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleDragOver(e);
-    },
-    [handleDragOver],
-  );
+  const handleLocalDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   const handleLocalDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (handleDrop) handleDrop(e);
+      onDrop?.(e);
     },
-    [handleDrop],
+    [onDrop],
   );
 
   return (
+    /*
+      FIX: this outer wrapper now has `overflow-hidden min-w-0` so any child
+      that refuses to shrink (long FileTabs, wide ruler, header controls)
+      gets clipped instead of pushing the column wider. The parent column
+      already constrains us; we just need to honor the constraint.
+    */
     <div
-      className="bg-app-surface p-4 rounded-lg border border-app-border flex-grow flex flex-col h-full"
+      className="bg-app-surface p-4 rounded-lg border border-app-border flex-grow flex flex-col h-full min-w-0 overflow-hidden"
       onDragOver={handleLocalDragOver}
       onDrop={handleLocalDrop}
       onContextMenu={(e) => openContextMenu(e)}
     >
-      <TimelineHeader
-        undo={undo}
-        redo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        snapToGrid={snapToGrid}
-        toggleSnapToGrid={toggleSnapToGrid}
-        zoom={zoom}
-        setZoom={handleZoomChange}
-        volume={volume}
-        setVolume={setVolume}
-        isMuted={isMuted}
-        toggleMute={toggleMute}
-        onClearTimeline={handleClearTimeline}
-        isMediaLoaded={isMediaLoaded}
-        hasClips={timelineData.length > 0}
-        analyserRef={analyserRef}
-        isPlaying={!!isPlaying}
-        isVuOverlayEnabled={isVuOverlayEnabled}
-        onToggleVuOverlay={onToggleVuOverlay}
-      />
+      <div className="min-w-0 overflow-hidden flex-shrink-0">
+        <TimelineHeader
+          undo={ctx.undo}
+          redo={ctx.redo}
+          canUndo={ctx.canUndo}
+          canRedo={ctx.canRedo}
+          snapToGrid={ctx.settings.snapToGrid}
+          toggleSnapToGrid={() =>
+            ctx.handleSettingChange('snapToGrid', !ctx.settings.snapToGrid)
+          }
+          zoom={ctx.zoom}
+          setZoom={handleZoomChange}
+          volume={ctx.volume}
+          setVolume={ctx.setVolume}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+          onClearTimeline={handleClearTimeline}
+          isMediaLoaded={ctx.isMediaLoaded}
+          hasClips={ctx.timelineData.length > 0}
+          analyserRef={ctx.analyserRef}
+          isPlaying={ctx.isPlaying}
+          isVuOverlayEnabled={ctx.isVuOverlayEnabled}
+          onToggleVuOverlay={ctx.toggleVuOverlay}
+        />
+      </div>
 
-      <p className="text-sm text-app-gray mb-3 flex-shrink-0 font-mono">
-        {formatTime(currentTime)} / {formatTime(mediaDuration)}
-        {activeFile && isMediaLoaded && (
+      <p className="text-sm text-app-gray mb-3 flex-shrink-0 font-mono truncate min-w-0">
+        {ctx.formatTime(ctx.currentTime)} / {ctx.formatTime(ctx.mediaDuration)}
+        {ctx.activeFile && ctx.isMediaLoaded && (
           <span className="ml-2 text-xs bg-primary/20 px-2 py-1 rounded">
-            {activeFile.type.startsWith('video') ? 'Video' : 'Audio'}
+            {ctx.activeFile.type.startsWith('video') ? 'Video' : 'Audio'}
           </span>
         )}
         {ctx.clipboardClip && (
@@ -389,9 +285,9 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
             Clip Copied
           </span>
         )}
-        {isMediaLoaded && (
+        {ctx.isMediaLoaded && (
           <span className="ml-2 text-xs text-app-gray">
-            {timelineData.length} clips
+            {ctx.timelineData.length} clips
           </span>
         )}
       </p>
@@ -399,30 +295,30 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
       <div
         ref={scrollRef}
         onMouseDown={onTimelineMouseDown}
-        className={`rounded-lg flex-1 relative overflow-x-auto overflow-y-hidden lyrics-list-scrollbar ${
-          isMediaLoaded ? '' : 'border-2 border-dashed border-app-border'
+        className={`rounded-lg flex-1 min-h-0 min-w-0 relative overflow-x-auto overflow-y-hidden lyrics-list-scrollbar ${
+          ctx.isMediaLoaded ? '' : 'border-2 border-dashed border-app-border'
         }`}
       >
-        {isMediaLoaded ? (
+        {ctx.isMediaLoaded ? (
           <div
             ref={innerRef}
             className="relative h-full"
-            style={{ width: `${Math.max(1, zoom) * 100}%` }}
+            style={{ width: `${Math.max(1, ctx.zoom) * 100}%` }}
           >
             <TimeRuler
-              mediaDuration={mediaDuration}
-              zoom={Math.max(1, zoom)}
-              formatTime={formatTime}
+              mediaDuration={ctx.mediaDuration}
+              zoom={Math.max(1, ctx.zoom)}
+              formatTime={ctx.formatTime}
               containerWidth={containerWidth}
             />
             <TrackLane>
-              {timelineData.map((item) => (
+              {ctx.timelineData.map((item) => (
                 <TimelineClip
                   key={item.id}
                   item={item}
-                  mediaDuration={mediaDuration}
-                  isSelected={selectedIds.has(item.id)}
-                  zoom={zoom}
+                  mediaDuration={ctx.mediaDuration}
+                  isSelected={ctx.selectedIds.has(item.id)}
+                  zoom={ctx.zoom}
                   containerWidth={containerWidth}
                   onStartDrag={(type, e, timelineWidth, isDuplicate) =>
                     handleStartDrag(
@@ -435,10 +331,10 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
                       isDuplicate,
                     )
                   }
-                  onDelete={() => deleteTimelineItem(item.id)}
+                  onDelete={() => ctx.deleteTimelineItem(item.id)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleSelection(item.id, e);
+                    ctx.toggleTimelineSelection(item.id, e);
                   }}
                   onContextMenu={openContextMenu}
                 />
@@ -449,11 +345,12 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
               className="absolute top-0 w-[3px] bg-red-500 h-full pointer-events-none z-20 shadow-lg shadow-red-500/50"
               style={{
                 transform: `translateX(${
-                  innerRef.current && mediaDuration > 0
-                    ? (currentTime / mediaDuration) * innerRef.current.scrollWidth
+                  innerRef.current && ctx.mediaDuration > 0
+                    ? (ctx.currentTime / ctx.mediaDuration) *
+                      innerRef.current.scrollWidth
                     : 0
                 }px)`,
-                opacity: isMediaLoaded || currentTime > 0 ? 1 : 0,
+                opacity: ctx.isMediaLoaded || ctx.currentTime > 0 ? 1 : 0,
                 transition: 'none',
                 zIndex: 20,
               }}
@@ -476,9 +373,8 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
         hasCopiedClip={!!ctx.clipboardClip}
-        hasMultipleSelected={selectedIds.size >= 2}
+        hasMultipleSelected={ctx.selectedIds.size >= 2}
       />
     </div>
   );
 };
-

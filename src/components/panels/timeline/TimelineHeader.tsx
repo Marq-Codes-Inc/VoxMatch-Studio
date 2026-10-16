@@ -40,25 +40,43 @@ interface Props {
 }
 
 export const TimelineHeader: React.FC<Props> = ({
-  undo, redo, canUndo, canRedo, snapToGrid, toggleSnapToGrid,
-  zoom, setZoom, volume, setVolume, isMuted, toggleMute,
-  onClearTimeline, isMediaLoaded, hasClips, analyserRef, isPlaying,
-  isVuOverlayEnabled, onToggleVuOverlay,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+  snapToGrid,
+  toggleSnapToGrid,
+  zoom,
+  setZoom,
+  volume,
+  setVolume,
+  isMuted,
+  toggleMute,
+  onClearTimeline,
+  isMediaLoaded,
+  hasClips,
+  analyserRef,
+  isPlaying,
+  isVuOverlayEnabled,
+  onToggleVuOverlay,
 }) => (
-  <div className="flex items-center gap-4 mb-2 flex-shrink-0 min-w-0">
+  <div className="flex items-center gap-3 mb-2 flex-shrink-0 min-w-0">
     <h3 className="text-xl font-semibold flex items-center flex-shrink-0">
       <Ruler className="mr-2 text-primary" /> Timeline
     </h3>
 
-    <div className="flex-1 min-w-0 flex items-center">
+    {/* FileTabs — allowed to shrink and clip, never pushes siblings wider. */}
+    <div className="flex-1 min-w-0 overflow-hidden">
       <FileTabs />
     </div>
 
-    <div className="flex items-center gap-3 flex-shrink-0">
+    {/* Right-hand controls — fixed footprint, never shrinks below its size. */}
+    <div className="flex items-center gap-2 flex-shrink-0">
       <button
         onClick={undo}
         disabled={!canUndo}
         className="p-1 rounded disabled:opacity-50 text-app-icon-color"
+        title="Undo"
       >
         <Undo size={18} />
       </button>
@@ -66,32 +84,55 @@ export const TimelineHeader: React.FC<Props> = ({
         onClick={redo}
         disabled={!canRedo}
         className="p-1 rounded disabled:opacity-50 text-app-icon-color"
+        title="Redo"
       >
         <Redo size={18} />
       </button>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <button
           onClick={() => setZoom(Math.max(1, zoom - 0.25))}
           className="p-1 rounded text-app-icon-color"
+          title="Zoom out"
         >
           <ZoomOut size={16} />
         </button>
-        <ZoomLevel value={zoom} min={1} max={20} step={0.25} onChange={setZoom} />
+        <ZoomLevel
+          value={zoom}
+          min={1}
+          max={20}
+          step={0.25}
+          onChange={setZoom}
+        />
         <button
           onClick={() => setZoom(Math.min(20, zoom + 0.25))}
           className="p-1 rounded text-app-icon-color"
+          title="Zoom in"
         >
           <ZoomIn size={16} />
         </button>
       </div>
 
       <div className="flex items-center gap-2">
-        <button onClick={toggleMute} className="p-1 rounded text-app-icon-color">
+        <button
+          onClick={toggleMute}
+          className="p-1 rounded text-app-icon-color"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
           {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
-        <VolumeSlider value={volume} min={0} max={1} step={0.05} onChange={setVolume} />
-        <VuMeter analyserRef={analyserRef} isPlaying={isPlaying} variant="compact" />
+        <VolumeSlider
+          value={volume}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={setVolume}
+        />
+        <VuMeter
+          analyserRef={analyserRef}
+          isPlaying={isPlaying}
+          variant="compact"
+        />
         <button
           onClick={onToggleVuOverlay}
           className={`p-1.5 rounded-full transition-all duration-200 ${
@@ -99,7 +140,11 @@ export const TimelineHeader: React.FC<Props> = ({
               ? 'bg-primary text-white shadow-md shadow-primary/40'
               : 'text-app-icon-color hover:bg-app-gray-light hover:text-primary'
           }`}
-          title={isVuOverlayEnabled ? 'Hide floating audio meter' : 'Show floating audio meter'}
+          title={
+            isVuOverlayEnabled
+              ? 'Hide floating audio meter'
+              : 'Show floating audio meter'
+          }
         >
           <Activity size={15} strokeWidth={2} />
         </button>

@@ -68,14 +68,10 @@ export function shallowCompareProjects(
     Array.isArray(bLegacy.subtitles)
   ) {
     if (!clipsEqual(aLegacy.lyrics ?? [], bLegacy.lyrics ?? [])) return false;
-    if (!clipsEqual(aLegacy.subtitles ?? [], bLegacy.subtitles ?? []))
-      return false;
+    if (!clipsEqual(aLegacy.subtitles ?? [], bLegacy.subtitles ?? [])) return false;
   }
 
-  if (
-    typeof aLegacy.zoom === 'number' ||
-    typeof bLegacy.zoom === 'number'
-  ) {
+  if (typeof aLegacy.zoom === 'number' || typeof bLegacy.zoom === 'number') {
     if ((aLegacy.zoom ?? 1) !== (bLegacy.zoom ?? 1)) return false;
   }
 
@@ -141,8 +137,7 @@ function trackEqual(a: FileTrack | undefined, b: FileTrack | undefined): boolean
   if (!clipsEqual(a.subtitles ?? [], b.subtitles ?? [])) return false;
   if ((a.markers?.length ?? 0) !== (b.markers?.length ?? 0)) return false;
   if (JSON.stringify(a.stageStyle) !== JSON.stringify(b.stageStyle)) return false;
-  if (JSON.stringify(a.lyricTextStyle) !== JSON.stringify(b.lyricTextStyle))
-    return false;
+  if (JSON.stringify(a.lyricTextStyle) !== JSON.stringify(b.lyricTextStyle)) return false;
   if (JSON.stringify(a.subtitleTextStyle) !== JSON.stringify(b.subtitleTextStyle))
     return false;
   return true;
@@ -168,10 +163,23 @@ function basenameWithoutExtension(filePath: string): string {
   return dot > 0 ? file.slice(0, dot) : file;
 }
 
+function resolveTheme(theme: AppSettings['theme']): 'light' | 'dark' {
+  if (theme !== 'system') return theme || 'dark';
+  if (typeof window === 'undefined' || !window.matchMedia) return 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemeToDom(theme: AppSettings['theme'], primaryColor?: string) {
+  const root = document.documentElement;
+  root.setAttribute('data-theme', resolveTheme(theme));
+  if (primaryColor) {
+    root.style.setProperty('--primary', primaryColor);
+    root.style.setProperty('--primary-hover', `${primaryColor}E6`);
+  }
+}
+
 function App() {
-  const [activeProject, setActiveProject] = useState<VoxMatchProject | null>(
-    null,
-  );
+  const [activeProject, setActiveProject] = useState<VoxMatchProject | null>(null);
   const [projects, setProjects] = useState<VoxMatchProject[]>([]);
   const [editorKey, setEditorKey] = useState(0);
   const [appSettings, setAppSettings] = useState<AppSettings>(loadSettings);
@@ -185,21 +193,31 @@ function App() {
     activeProjectRef.current = activeProject;
   }, [activeProject]);
 
+  // Persist settings + apply theme to DOM when no project is open.
+  // ProjectEditor owns theme application while editing so the two
+  // never fight each other.
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
     } catch (e) {
       console.warn('Failed to persist settings:', e);
     }
-    const theme = appSettings.theme || 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-    if (appSettings.primaryColor) {
-      document.documentElement.style.setProperty(
-        '--primary',
-        appSettings.primaryColor,
-      );
+    if (!activeProject) {
+      applyThemeToDom(appSettings.theme, appSettings.primaryColor);
     }
-  }, [appSettings]);
+  }, [appSettings, activeProject]);
+
+  // Live-update DOM when the OS theme changes while in 'system' mode
+  // (only matters on the home screen; the editor handles its own).
+  useEffect(() => {
+    if (appSettings.theme !== 'system' || activeProject) return;
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () =>
+      applyThemeToDom('system', appSettings.primaryColor);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [appSettings.theme, appSettings.primaryColor, activeProject]);
 
   useEffect(() => {
     document.title = activeProject
@@ -214,8 +232,7 @@ function App() {
       if (key && key.startsWith(PROJECT_KEY_PREFIX)) {
         try {
           const raw = localStorage.getItem(key)!;
-          const project = deserializeProject(raw);
-          loaded.push(project);
+          loaded.push(deserializeProject(raw));
         } catch (e) {
           console.error('Failed to load project:', e);
         }
@@ -247,11 +264,27 @@ function App() {
           : [project, ...prev];
         return next.sort((a, b) => b.updatedAt - a.updatedAt);
       });
-      console.log(`✅ Project "${project.name}" saved`);
     } catch (error) {
       console.error('Failed to persist project:', error);
     }
   }, []);
+
+  const loadProjectFromPath = useCallback(
+    async (filePath: string) => {
+      const fileContent = await window.electronAPI!.loadProjectFile(filePath);
+      if (!fileContent) return;
+      const project = deserializeProject(fileContent);
+      project.projectFilePath = filePath;
+      project.isSaved = true;
+      project.updatedAt = Date.now();
+
+      persistProject(project);
+      lastProjectRef.current = project;
+      setActiveProject(project);
+      setEditorKey((prev) => prev + 1);
+    },
+    [persistProject],
+  );
 
   useEffect(() => {
     if (!window.electronAPI?.on) return;
@@ -259,21 +292,8 @@ function App() {
     const unsubscribe = window.electronAPI.on(
       'app:openProjectFile',
       async (filePath: string) => {
-        console.log(`📂 Received open request: ${filePath}`);
         try {
-          const fileContent =
-            await window.electronAPI!.loadProjectFile(filePath);
-          if (!fileContent) return;
-
-          const project = deserializeProject(fileContent);
-          project.projectFilePath = filePath;
-          project.isSaved = true;
-          project.updatedAt = Date.now();
-
-          persistProject(project);
-          lastProjectRef.current = project;
-          setActiveProject(project);
-          setEditorKey((prev) => prev + 1);
+          await loadProjectFromPath(filePath);
         } catch (error) {
           console.error('Failed to open .vxm from OS:', error);
           alert(
@@ -286,9 +306,8 @@ function App() {
     );
 
     window.electronAPI.notifyAppReady();
-
     return unsubscribe;
-  }, [persistProject]);
+  }, [loadProjectFromPath]);
 
   const handleSettingChange = useCallback((name: string, value: any) => {
     setAppSettings((prev) => ({ ...prev, [name]: value } as AppSettings));
@@ -364,21 +383,7 @@ function App() {
         ],
       });
       if (result.canceled || !result.filePaths?.[0]) return;
-
-      const filePath = result.filePaths[0];
-      const fileContent = await window.electronAPI.loadProjectFile(filePath);
-      if (!fileContent) return;
-
-      const project = deserializeProject(fileContent);
-      project.projectFilePath = filePath;
-      project.isSaved = true;
-      project.updatedAt = Date.now();
-
-      persistProject(project);
-      lastProjectRef.current = project;
-      setActiveProject(project);
-      setEditorKey((prev) => prev + 1);
-      console.log(`📂 Opened project from ${filePath}`);
+      await loadProjectFromPath(result.filePaths[0]);
     } catch (error) {
       console.error('Error opening project file:', error);
       alert(
@@ -387,7 +392,7 @@ function App() {
         }`,
       );
     }
-  }, [persistProject]);
+  }, [loadProjectFromPath]);
 
   const handleDeleteProject = useCallback(
     (projectId: string) => {
@@ -402,56 +407,52 @@ function App() {
     [activeProject],
   );
 
-  const handleProjectUpdate = useCallback(
-    (updatedProject: VoxMatchProject) => {
-      if (isUpdatingRef.current) return;
+  const handleProjectUpdate = useCallback((updatedProject: VoxMatchProject) => {
+    if (isUpdatingRef.current) return;
 
-      if (
-        lastProjectRef.current &&
-        shallowCompareProjects(lastProjectRef.current, updatedProject)
-      ) {
-        return;
+    if (
+      lastProjectRef.current &&
+      shallowCompareProjects(lastProjectRef.current, updatedProject)
+    ) {
+      return;
+    }
+
+    const stampedProject: VoxMatchProject = {
+      ...updatedProject,
+      updatedAt: Date.now(),
+    };
+
+    isUpdatingRef.current = true;
+    lastProjectRef.current = stampedProject;
+    setActiveProject(stampedProject);
+
+    setAppSettings((prev) => {
+      const nextTheme = stampedProject.settings?.theme ?? prev.theme;
+      const nextColor = stampedProject.settings?.primaryColor ?? prev.primaryColor;
+      if (prev.theme === nextTheme && prev.primaryColor === nextColor) {
+        return prev;
       }
+      return { ...prev, theme: nextTheme, primaryColor: nextColor };
+    });
 
-      const stampedProject: VoxMatchProject = {
-        ...updatedProject,
-        updatedAt: Date.now(),
-      };
-
-      isUpdatingRef.current = true;
-      lastProjectRef.current = stampedProject;
-      setActiveProject(stampedProject);
-
-      setAppSettings((prev) => {
-        const nextTheme = stampedProject.settings?.theme ?? prev.theme;
-        const nextColor =
-          stampedProject.settings?.primaryColor ?? prev.primaryColor;
-        if (prev.theme === nextTheme && prev.primaryColor === nextColor) {
-          return prev;
-        }
-        return { ...prev, theme: nextTheme, primaryColor: nextColor };
-      });
-
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        try {
-          localStorage.setItem(
-            `${PROJECT_KEY_PREFIX}${stampedProject.id}`,
-            serializeProject(stampedProject),
-          );
-          setProjects((prev) =>
-            prev
-              .map((p) => (p.id === stampedProject.id ? stampedProject : p))
-              .sort((a, b) => b.updatedAt - a.updatedAt),
-          );
-        } finally {
-          isUpdatingRef.current = false;
-          saveTimeoutRef.current = null;
-        }
-      }, 500);
-    },
-    [],
-  );
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          `${PROJECT_KEY_PREFIX}${stampedProject.id}`,
+          serializeProject(stampedProject),
+        );
+        setProjects((prev) =>
+          prev
+            .map((p) => (p.id === stampedProject.id ? stampedProject : p))
+            .sort((a, b) => b.updatedAt - a.updatedAt),
+        );
+      } finally {
+        isUpdatingRef.current = false;
+        saveTimeoutRef.current = null;
+      }
+    }, 500);
+  }, []);
 
   const handleSaveProjectAs = useCallback(async () => {
     const current = activeProjectRef.current;
@@ -488,13 +489,11 @@ function App() {
       };
 
       const ipcPayload = JSON.parse(serializeProject(updatedProject));
-
       await window.electronAPI.saveProject(ipcPayload, filePath);
 
       persistProject(updatedProject);
       setActiveProject(updatedProject);
       lastProjectRef.current = updatedProject;
-      console.log(`✅ Saved As ${filePath}`);
     } catch (error) {
       console.error('Error saving project as:', error);
       alert(
@@ -510,7 +509,6 @@ function App() {
     if (!current) return;
 
     const existingPath = current.projectFilePath;
-
     if (!existingPath || !window.electronAPI) {
       await handleSaveProjectAs();
       return;
@@ -529,9 +527,7 @@ function App() {
 
     try {
       const ipcPayload = JSON.parse(serializeProject(updatedProject));
-
       await window.electronAPI.saveProject(ipcPayload, existingPath);
-      console.log(`✅ Saved to ${existingPath}`);
 
       persistProject(updatedProject);
       setActiveProject(updatedProject);
@@ -549,8 +545,7 @@ function App() {
   const handleCloseProject = useCallback(() => {
     const current = activeProjectRef.current;
     if (current) {
-      const updatedProject = { ...current, updatedAt: Date.now() };
-      persistProject(updatedProject);
+      persistProject({ ...current, updatedAt: Date.now() });
     }
     setActiveProject(null);
     lastProjectRef.current = null;

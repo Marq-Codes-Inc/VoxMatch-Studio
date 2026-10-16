@@ -29,7 +29,6 @@ declare global {
         data: ArrayBuffer;
         mimeType: string;
       }>;
-      /** NEW — read any text file (subtitle/lyrics import). */
       readTextFile: (filePath: string) => Promise<string>;
       loadProjectFile: (filePath: string) => Promise<string>;
       saveProject: (
@@ -54,6 +53,7 @@ declare global {
       }) => Promise<{ success: boolean; path?: string }>;
       getAppVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      getPath: (name: string) => Promise<string>;
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;

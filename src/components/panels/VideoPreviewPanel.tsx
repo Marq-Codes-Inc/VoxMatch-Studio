@@ -40,6 +40,7 @@ interface VideoPreviewPanelProps {
   overlayMode: 'lyrics' | 'subtitles';
   videoAspect: number | null;
   isMediaLoaded: boolean;
+  onVideoLoadedMetadata?: (aspect: number) => void;
 }
 
 const renderLayer = (layer: StageLayer): React.CSSProperties => {
@@ -66,7 +67,10 @@ const renderLayer = (layer: StageLayer): React.CSSProperties => {
       style.background = `radial-gradient(circle, ${stopString})`;
     else if (type === 'conic')
       style.background = `conic-gradient(from ${angle || 0}deg, ${stopString})`;
-  } else if ((layer.type === 'image' || layer.type === 'video') && layer.content) {
+  } else if (
+    (layer.type === 'image' || layer.type === 'video') &&
+    layer.content
+  ) {
     style.backgroundImage = `url(${layer.content})`;
     style.backgroundSize = layer.fit || 'cover';
     style.backgroundPosition = 'center';
@@ -94,9 +98,9 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   overlayMode,
   videoAspect,
   isMediaLoaded,
+  onVideoLoadedMetadata,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const progressFillRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
   const pointerIdRef = useRef<number | null>(null);
 
@@ -108,7 +112,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
   const isVideo = !!activeFile && activeFile.type.startsWith('video');
   const isAudioFile = !!activeFile && activeFile.type.startsWith('audio');
 
-  // Feature flags from stage settings
   const hideVideoLayer = !!stageStyle.hideVideoLayer;
   const hideAudioTitle = !!stageStyle.hideAudioTitle;
 
@@ -130,14 +133,17 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     if (!backgroundVideoRef.current || !backgroundVideoUrl) return;
     const video = backgroundVideoRef.current;
     if (isPlaying) {
-      video.play().catch((e) => console.warn('Background video play failed:', e));
+      video.play().catch((e) =>
+        console.warn('Background video play failed:', e),
+      );
     } else {
       video.pause();
     }
   }, [isPlaying, backgroundVideoUrl]);
 
   useEffect(() => {
-    if (!backgroundVideoRef.current || !backgroundVideoUrl || !isAudioFile) return;
+    if (!backgroundVideoRef.current || !backgroundVideoUrl || !isAudioFile)
+      return;
     const video = backgroundVideoRef.current;
     if (Math.abs(video.currentTime - currentTime) > 0.2) {
       video.currentTime = currentTime;
@@ -156,22 +162,20 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     if (!container) return 0;
     const rect = container.getBoundingClientRect();
     const x = Math.max(0, Math.min(pageX - rect.left, rect.width));
-    const pct = rect.width > 0 ? x / rect.width : 0;
-    return pct * mediaDuration;
+    return (rect.width > 0 ? x / rect.width : 0) * mediaDuration;
   };
 
   const onPointerDownTrack = (e: React.PointerEvent) => {
     if (!mediaDuration) return;
     isDraggingRef.current = true;
-    pointerIdRef.current = (e as any).pointerId;
-    (e.target as Element).setPointerCapture?.((e as any).pointerId);
-    const newTime = pageXToTime(e.pageX);
-    handleSeek(newTime);
+    pointerIdRef.current = e.pointerId;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    handleSeek(pageXToTime(e.pageX));
 
     const onPointerMove = (ev: PointerEvent) => {
-      if (!isDraggingRef.current || pointerIdRef.current !== ev.pointerId) return;
-      const t = pageXToTime(ev.pageX);
-      handleSeek(t);
+      if (!isDraggingRef.current || pointerIdRef.current !== ev.pointerId)
+        return;
+      handleSeek(pageXToTime(ev.pageX));
     };
     const onPointerUp = (ev: PointerEvent) => {
       if (pointerIdRef.current !== ev.pointerId) return;
@@ -202,20 +206,18 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     }
   };
 
-  const handleSeekBackward = () => {
+  const handleSeekBackward = () =>
     handleSeek(Math.max(0, currentTime - 1));
-  };
-  const handleSeekForward = () => {
+  const handleSeekForward = () =>
     handleSeek(Math.min(mediaDuration, currentTime + 1));
-  };
 
   const textStyle =
     overlayMode === 'lyrics' ? lyricTextStyle : subtitleTextStyle;
   const stageAspectRatio = getAspectRatio(stageStyle);
 
   const animClass =
-    (textStyle as any).animation && (textStyle as any).animation !== 'none'
-      ? `animate-text-${(textStyle as any).animation}`
+    textStyle.animation && textStyle.animation !== 'none'
+      ? `animate-text-${textStyle.animation}`
       : '';
 
   const getBgStyle = (): React.CSSProperties => {
@@ -267,11 +269,22 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
 
   const progressPercent =
     mediaDuration > 0 ? (currentTime / mediaDuration) * 100 : 0;
-  const visibleLayers = stageStyle.layers?.filter((l) => l.visible !== false) || [];
+  const visibleLayers =
+    stageStyle.layers?.filter((l) => l.visible !== false) || [];
   const showBackgroundVideo = isAudioFile && backgroundVideoUrl && !isVideo;
 
+  const handleLoadedMetadata = () => {
+    const video = mediaElementRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    onVideoLoadedMetadata?.(video.videoWidth / video.videoHeight);
+  };
+
+  const resolvedAspectRatio = isVideo
+    ? videoAspect || stageAspectRatio
+    : stageAspectRatio;
+
   return (
-    <div className="bg-app-surface p-4 rounded-lg border border-app-border flex flex-col h-full">
+    <div className="bg-app-surface p-4 rounded-lg border border-app-border flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 className="text-xl font-semibold flex items-center">
           <Video className="mr-2 text-primary" /> Monitor
@@ -293,41 +306,47 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
         </p>
       )}
 
-      <div className="w-full flex-grow flex items-center justify-center min-h-0 mx-auto">
+      {/*
+        The middle wrapper has a definite size (it's the flex-grow child of a
+        flex-col with a fixed height). The aspect box uses height: 100% so the
+        browser has a concrete dimension to derive the other axis from, and
+        maxWidth: 100% caps it to the wrapper's width. When the wrapper is
+        narrow, the browser reduces BOTH dimensions to satisfy both the aspect
+        ratio and the width cap — which is exactly what we want.
+      */}
+      <div
+        className="w-full min-h-0 min-w-0 overflow-hidden"
+        style={{
+          flex: '1 1 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <div
           className="relative overflow-hidden bg-black rounded-lg"
           style={{
+            aspectRatio: resolvedAspectRatio,
             height: '100%',
-            width: 'auto',
-            aspectRatio: isVideo
-              ? videoAspect || stageAspectRatio
-              : stageAspectRatio,
+            maxWidth: '100%',
           }}
         >
-          {/* Stage layers (always rendered underneath) */}
           <div className="absolute inset-0 z-0">
             <div
               className="absolute inset-0"
-              style={{ backgroundColor: stageStyle.backgroundColor || '#000000' }}
+              style={{
+                backgroundColor: stageStyle.backgroundColor || '#000000',
+              }}
             />
             {visibleLayers.map((layer) => (
               <div key={layer.id} style={renderLayer(layer)} />
             ))}
           </div>
 
-          {/*
-            Video element is ALWAYS mounted so playback / audio routing keep
-            working. When `hideVideoLayer` is on we simply hide it visually.
-          */}
           <video
             ref={mediaElementRef}
             src={isMediaLoaded ? mediaUrl || undefined : undefined}
-            onLoadedMetadata={() => {
-              const video = mediaElementRef.current;
-              if (video && video.videoWidth && video.videoHeight) {
-                // Parent listens via context — aspect handled there
-              }
-            }}
+            onLoadedMetadata={handleLoadedMetadata}
             className="absolute inset-0 w-full h-full object-contain z-10"
             style={{ display: showVideoElement ? 'block' : 'none' }}
             playsInline
@@ -372,14 +391,14 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
       <div className="flex justify-center items-center space-x-4 mt-4 flex-shrink-0">
         <button
           onClick={handleSeekBackward}
-          className="p-2 rounded-full hover:text-primary transition-colors"
+          className="p-2 rounded-full hover:text-primary"
           title="1s back"
         >
           <ChevronLeft size={22} strokeWidth={1.5} />
         </button>
         <button
           onClick={togglePlayPause}
-          className="p-2 rounded-full hover:text-primary transition-colors"
+          className="p-2 rounded-full hover:text-primary"
           title={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? (
@@ -390,7 +409,7 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
         </button>
         <button
           onClick={handleSeekForward}
-          className="p-2 rounded-full hover:text-primary transition-colors"
+          className="p-2 rounded-full hover:text-primary"
           title="1s forward"
         >
           <ChevronRight size={22} strokeWidth={1.5} />
@@ -415,7 +434,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
             style={{ touchAction: 'none' }}
           >
             <div
-              ref={progressFillRef}
               className="absolute top-0 left-0 h-full bg-primary rounded-full z-10"
               style={{ width: `${progressPercent}%` }}
             />

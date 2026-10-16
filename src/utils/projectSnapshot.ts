@@ -1,11 +1,20 @@
-// src/utils/projectSnapshot.ts
 import { VoxMatchProject, FileTrack } from '../types/types';
 import { renderStageSnapshot } from './stageSnapshot';
+
+const MAX_CACHE_ENTRIES = 40;
 
 const CACHE = new Map<string, string>();
 const INFLIGHT = new Map<string, Promise<string>>();
 
-/* Resolve the current project's active track (or undefined if none). */
+function touch(key: string, value: string): void {
+  if (CACHE.has(key)) CACHE.delete(key);
+  CACHE.set(key, value);
+  if (CACHE.size > MAX_CACHE_ENTRIES) {
+    const oldest = CACHE.keys().next().value;
+    if (oldest !== undefined) CACHE.delete(oldest);
+  }
+}
+
 function activeTrack(project: VoxMatchProject): FileTrack | undefined {
   if (!project.activeFileId) return undefined;
   return project.tracks?.[project.activeFileId];
@@ -14,19 +23,10 @@ function activeTrack(project: VoxMatchProject): FileTrack | undefined {
 function makeKey(project: VoxMatchProject): string {
   const track = activeTrack(project);
   const s = track?.stageStyle;
-  const textStyle =
-    project.mode === 'lyrics'
-      ? track?.lyricTextStyle
-      : track?.subtitleTextStyle;
-
-  const list =
-    project.mode === 'lyrics'
-      ? track?.lyrics ?? []
-      : track?.subtitles ?? [];
-  const firstClip = [...list].sort((a, b) => a.startTime - b.startTime)[0];
-
-  const activeFile =
-    project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
+  const textStyle = project.mode === 'lyrics' ? track?.lyricTextStyle : track?.subtitleTextStyle;
+  const list = project.mode === 'lyrics' ? track?.lyrics ?? [] : track?.subtitles ?? [];
+  const first = [...list].sort((a, b) => a.startTime - b.startTime)[0];
+  const activeFile = project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
 
   return JSON.stringify({
     id: project.id,
@@ -54,7 +54,7 @@ function makeKey(project: VoxMatchProject): string {
           italic: textStyle.italic,
         }
       : null,
-    previewText: firstClip?.text ?? null,
+    previewText: first?.text ?? null,
     activeFileName: activeFile?.name ?? null,
     posterDataUrl: activeFile?.posterDataUrl ?? null,
   });
@@ -62,40 +62,30 @@ function makeKey(project: VoxMatchProject): string {
 
 export function getProjectSnapshot(project: VoxMatchProject): Promise<string> {
   const key = makeKey(project);
-
   const cached = CACHE.get(key);
-  if (cached) return Promise.resolve(cached);
+  if (cached) {
+    touch(key, cached);
+    return Promise.resolve(cached);
+  }
 
   const inflight = INFLIGHT.get(key);
   if (inflight) return inflight;
 
   const track = activeTrack(project);
-  const textStyle =
-    project.mode === 'lyrics'
-      ? track?.lyricTextStyle
-      : track?.subtitleTextStyle;
-
-  const list =
-    project.mode === 'lyrics'
-      ? track?.lyrics ?? []
-      : track?.subtitles ?? [];
-  const firstClip = [...list].sort((a, b) => a.startTime - b.startTime)[0];
-
-  const activeFile =
-    project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
-
+  const textStyle = project.mode === 'lyrics' ? track?.lyricTextStyle : track?.subtitleTextStyle;
+  const list = project.mode === 'lyrics' ? track?.lyrics ?? [] : track?.subtitles ?? [];
+  const first = [...list].sort((a, b) => a.startTime - b.startTime)[0];
+  const activeFile = project.mediaFiles.find((f) => f.id === project.activeFileId) ?? null;
   const isVideo = !!activeFile?.type?.startsWith('video');
 
-  // If the project has no track yet, fall back to a plain placeholder
   if (!track || !textStyle) {
-    const emptyPromise = Promise.resolve('');
     CACHE.set(key, '');
-    return emptyPromise;
+    return Promise.resolve('');
   }
 
   const promise = renderStageSnapshot({
     stageStyle: track.stageStyle,
-    overlayText: firstClip?.text ?? undefined,
+    overlayText: first?.text ?? undefined,
     textStyle,
     width: 480,
     mediaElement: null,
@@ -106,7 +96,7 @@ export function getProjectSnapshot(project: VoxMatchProject): Promise<string> {
     activeFileName: activeFile?.name ?? null,
   })
     .then((url) => {
-      CACHE.set(key, url);
+      touch(key, url);
       INFLIGHT.delete(key);
       return url;
     })
@@ -120,9 +110,8 @@ export function getProjectSnapshot(project: VoxMatchProject): Promise<string> {
 }
 
 export function invalidateProjectSnapshot(projectId: string): void {
-  for (const key of Array.from(CACHE.keys())) {
-    if (key.includes(`"id":"${projectId}"`)) {
-      CACHE.delete(key);
-    }
+  const needle = `"id":"${projectId}"`;
+  for (const key of [...CACHE.keys()]) {
+    if (key.includes(needle)) CACHE.delete(key);
   }
 }

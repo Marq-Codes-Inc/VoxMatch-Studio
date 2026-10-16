@@ -1,4 +1,3 @@
-// src/components/panels/timeline/TimelineClip.tsx
 import React, { useRef } from 'react';
 import { X } from 'lucide-react';
 import { LyricLine } from '../../../types/types';
@@ -33,6 +32,7 @@ export const TimelineClip: React.FC<Props> = ({
   if (pixelWidth < 4) {
     return (
       <div
+        data-clip="true"
         className="absolute top-1/2 -translate-y-1/2 h-9 bg-gradient-to-r from-teal-500 to-teal-700 opacity-40 rounded-sm"
         style={{ left: `${leftPercent}%`, width: `${widthPercent}%`, transition: 'none' }}
         title={`${item.text} (${(item.endTime - item.startTime).toFixed(2)}s)`}
@@ -51,6 +51,7 @@ export const TimelineClip: React.FC<Props> = ({
   return (
     <div
       ref={clipRef}
+      data-clip="true"
       className={`absolute top-1/2 -translate-y-1/2 h-9 rounded-sm shadow-md text-white text-xs flex items-center truncate ${
         isSelected
           ? 'bg-gradient-to-r from-teal-500 to-teal-700 border-2 border-teal-900 ring-2 ring-teal-400/50'
@@ -71,11 +72,13 @@ export const TimelineClip: React.FC<Props> = ({
       }}
     >
       <div
+        data-clip-handle="start"
         className="absolute left-0 top-0 h-full w-2 cursor-ew-resize bg-black/20 hover:bg-black/35 rounded-l-sm"
         onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, 'start'); }}
       />
       <span className="px-2 truncate">{item.text}</span>
       <div
+        data-clip-handle="end"
         className="absolute right-0 top-0 h-full w-2 cursor-ew-resize bg-black/20 hover:bg-black/35 rounded-r-sm"
         onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, 'end'); }}
       />

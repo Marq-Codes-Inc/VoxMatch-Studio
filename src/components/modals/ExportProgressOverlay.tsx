@@ -15,15 +15,10 @@ export interface ExportJobResult {
 }
 
 interface ExportProgressOverlayProps {
-  /** Unique id for this job. Progress events with a different id are ignored. */
   jobId: string;
-  /** Title shown in the header (e.g. "Exporting Subtitles"). */
   title: string;
-  /** Called once the job reports `done` or `error`, or the promise settles. */
   onComplete: (result: ExportJobResult) => void;
-  /** Called when the user clicks Cancel while the job is in flight. */
   onCancel: () => void;
-  /** Resolves when the underlying IPC call settles. */
   promise: Promise<ExportJobResult>;
 }
 
@@ -70,10 +65,9 @@ export const ExportProgressOverlay: React.FC<ExportProgressOverlayProps> = ({
     setLog((prev) => [...prev, { time: Date.now(), text, level }]);
   };
 
-  // ---- Subscribe to real progress events ----
+  // Subscribe to real progress events
   useEffect(() => {
     if (!window.electronAPI?.on) {
-      // No electron → simulate a brief write so the UI isn't frozen
       let raf = 0;
       const start = performance.now();
       const tick = () => {
@@ -119,7 +113,7 @@ export const ExportProgressOverlay: React.FC<ExportProgressOverlayProps> = ({
     return unsubscribe;
   }, [jobId]);
 
-  // ---- Await the underlying IPC promise ----
+  // Await the underlying IPC promise
   useEffect(() => {
     let cancelled = false;
 
@@ -160,7 +154,7 @@ export const ExportProgressOverlay: React.FC<ExportProgressOverlayProps> = ({
     };
   }, [promise]);
 
-  // ---- Auto-scroll log ----
+  // Auto-scroll log
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [log]);

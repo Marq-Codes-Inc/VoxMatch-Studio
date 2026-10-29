@@ -250,12 +250,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     isFileInfoModalOpen ||
     isStageSettingsModalOpen;
 
-  // ----------------------------------------------------------------------
-  // Measure the video slot. Re-measure on layout changes, and also schedule
-  // two requestAnimationFrame passes so the overlay tracks the slot even if
-  // the browser hasn't finished laying out the new maximized tree by the
-  // time this effect runs.
-  // ----------------------------------------------------------------------
   useLayoutEffect(() => {
     const slot = videoSlotRef.current;
     const container = containerRef.current;
@@ -381,8 +375,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     setIsStageSettingsModalOpen(true);
   }, [setIsStageSettingsModalOpen]);
 
-  // Unambiguous no-arg toggle. Ignores any boolean the panel passes and
-  // always flips the authoritative `layout.isMaximizedVideo`.
   const handleToggleMaximizeVideo = useCallback(() => {
     toggleMaximizeVideo();
   }, [toggleMaximizeVideo]);
@@ -822,12 +814,6 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             />
           )}
 
-          {/*
-            The overlay MUST sit above the layout (which is z-20) so the
-            floating VideoPreviewPanel receives clicks. The layout's empty
-            video-slot div is pointer-events-none, so nothing intercepts
-            below this overlay.
-          */}
           <div className="absolute inset-0 z-30 pointer-events-none">
             <div
               className="absolute"

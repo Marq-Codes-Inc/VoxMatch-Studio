@@ -65,12 +65,12 @@ export const TimelineHeader: React.FC<Props> = ({
       <Ruler className="mr-2 text-primary" /> Timeline
     </h3>
 
-    {/* FileTabs — allowed to shrink and clip, never pushes siblings wider. */}
+    {/* FileTabs */}
     <div className="flex-1 min-w-0 overflow-hidden">
       <FileTabs />
     </div>
 
-    {/* Right-hand controls — fixed footprint, never shrinks below its size. */}
+    {/* Right-hand controls */}
     <div className="flex items-center gap-2 flex-shrink-0">
       <button
         onClick={undo}

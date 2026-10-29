@@ -36,7 +36,6 @@ export function usePanelResize<Type extends string, Sizes>(
       e.preventDefault();
       e.stopPropagation();
 
-      // If a previous drag is somehow still alive, tear it down.
       cleanupRef.current?.();
 
       const root = rootRef.current;
@@ -78,9 +77,6 @@ export function usePanelResize<Type extends string, Sizes>(
         }
       };
 
-      // Window-level raw mouse listeners. We avoid setPointerCapture because
-      // some Windows pointing devices fire `pointercancel` right after
-      // `pointerdown`, killing the drag before a single move is processed.
       const onMove = (ev: MouseEvent) => {
         lastX = ev.clientX;
         lastY = ev.clientY;
@@ -111,4 +107,3 @@ export function usePanelResize<Type extends string, Sizes>(
 
   return { startResize };
 }
-

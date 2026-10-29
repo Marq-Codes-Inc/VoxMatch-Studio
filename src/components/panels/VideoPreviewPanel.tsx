@@ -283,21 +283,29 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     ? videoAspect || stageAspectRatio
     : stageAspectRatio;
 
+  // Always-available toggle. The parent wires `setIsMaximizedVideo` to a
+  // guaranteed no-arg toggle, so passing the intended next value is safe.
+  const handleToggleMaximize = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMaximizedVideo(!isMaximizedVideo);
+  };
+
   return (
     <div className="bg-app-surface p-4 rounded-lg border border-app-border flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 className="text-xl font-semibold flex items-center">
           <Video className="mr-2 text-primary" /> Monitor
         </h3>
-        {!isVerticalLayout && (
-          <button
-            onClick={() => setIsMaximizedVideo(!isMaximizedVideo)}
-            className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color"
-            title={isMaximizedVideo ? 'Minimize Video' : 'Maximize Video'}
-          >
-            {isMaximizedVideo ? <Minimize size={20} /> : <Maximize size={20} />}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleToggleMaximize}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color cursor-pointer"
+          title={isMaximizedVideo ? 'Minimize Video' : 'Maximize Video'}
+          aria-pressed={isMaximizedVideo}
+        >
+          {isMaximizedVideo ? <Minimize size={20} /> : <Maximize size={20} />}
+        </button>
       </div>
 
       {activeFile && (
@@ -306,14 +314,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
         </p>
       )}
 
-      {/*
-        The middle wrapper has a definite size (it's the flex-grow child of a
-        flex-col with a fixed height). The aspect box uses height: 100% so the
-        browser has a concrete dimension to derive the other axis from, and
-        maxWidth: 100% caps it to the wrapper's width. When the wrapper is
-        narrow, the browser reduces BOTH dimensions to satisfy both the aspect
-        ratio and the width cap — which is exactly what we want.
-      */}
       <div
         className="w-full min-h-0 min-w-0 overflow-hidden"
         style={{

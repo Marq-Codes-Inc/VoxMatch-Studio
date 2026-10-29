@@ -110,10 +110,10 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
       ref={rootRef}
       className="relative z-20 flex flex-row w-full h-full p-2"
     >
-      {/* Left column — fixed width, never shrinks. */}
+      {/* Left column — hidden while maximized. */}
       <div
         ref={leftPanelRef}
-        className="flex flex-col min-h-0"
+        className={`flex flex-col min-h-0 ${isMaximizedVideo ? 'hidden' : ''}`}
         style={{
           width: `${sizes.leftWidth}%`,
           flexShrink: 0,
@@ -186,14 +186,16 @@ export const VerticalLayout: React.FC<VerticalLayoutProps> = ({
         />
       )}
 
-      {/* Right column — grows to fill, allowed to shrink below content. */}
+      {/* Right column — grows to fill. */}
       <div
         className="flex-1 flex flex-col min-w-0"
         style={{ minWidth: 0, flexShrink: 1, flexBasis: 0 }}
       >
+        {/* Empty placeholder measured by ProjectEditor. pointer-events-none
+            so it never intercepts clicks meant for the floating panel. */}
         <div
           ref={videoSlotRef}
-          className="flex-1 min-h-0"
+          className="flex-1 min-h-0 pointer-events-none"
           style={{ minHeight: 0 }}
         />
       </div>

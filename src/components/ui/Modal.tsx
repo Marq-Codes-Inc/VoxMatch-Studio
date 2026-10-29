@@ -19,7 +19,7 @@ const sizeClasses: Record<ModalSize, string> = {
   xl: 'w-[95vw] max-w-[1200px]',
   '2xl': 'w-[98vw] max-w-[1400px]',
   full: 'w-[98vw] max-w-[1600px]',
-  stage: 'w-[98vw] h-[96vh] max-w-none max-h-none',   // ✅ fixed, largest size
+  stage: 'w-[98vw] h-[96vh] max-w-none max-h-none',
 };
 
 const ENTER_DURATION = 300;

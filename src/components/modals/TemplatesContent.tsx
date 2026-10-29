@@ -211,13 +211,6 @@ const buildStyle = (
     animation: overrides.animation || base.animation || 'none',
   } as TextStyle);
 
-/**
- * Compare the "identity" fields of a style to determine if it matches
- * a template. We intentionally ignore fields like `padding`, `width`,
- * `position`, etc. because the template set doesn't uniquely define
- * them — only the visual signature fields matter for "which template
- * is selected?".
- */
 function styleMatchesTemplate(
   current: TextStyle,
   templateStyle: Partial<TextStyle> & { animation?: string },

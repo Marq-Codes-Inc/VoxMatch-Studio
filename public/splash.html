@@ -15,7 +15,6 @@
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      /* Transparent background for Electron frameless window */
       background: transparent; 
       width: 100vw;
       height: 100vh;
@@ -37,7 +36,6 @@
       position: relative;
     }
 
-    /* Left Pane with Image and Fade */
     .left-pane {
       width: 45%;
       height: 100%;
@@ -52,7 +50,6 @@
       object-position: left center;
     }
 
-    /* Gradient overlay to smoothly blend the image into the right pane */
     .left-pane::after {
       content: '';
       position: absolute;
@@ -63,7 +60,6 @@
       background: linear-gradient(to right, transparent, #ffffff);
     }
 
-    /* Right Pane Content */
     .right-pane {
       width: 55%;
       height: 100%;
@@ -123,7 +119,7 @@
       margin-bottom: 24px;
     }
 
-    /* Progress Bar Layout */
+    /* Progress Bar */
     .progress-row {
       display: flex;
       align-items: center;
@@ -203,7 +199,7 @@
     let progress = 0;
     
     const interval = setInterval(() => {
-      // Simulate non-linear loading
+      // Non-linear loading simulation
       progress += Math.random() * 3;
       
       if (progress >= 100) {

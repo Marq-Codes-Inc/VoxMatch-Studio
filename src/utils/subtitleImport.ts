@@ -29,9 +29,7 @@ export interface ImportSubtitleResult {
   warnings: string[];
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /** Detect format from a filename or fall back to sniffing the content. */
 export function detectFormat(
@@ -83,9 +81,7 @@ export function parseSubtitleFile(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Time helpers
-// ---------------------------------------------------------------------------
 
 /** "00:00:05,500" or "00:00:05.500" → 5.5 */
 function parseHmsTime(raw: string): number | null {
@@ -123,9 +119,7 @@ function parseAssTime(raw: string): number | null {
   return h * 3600 + min * 60 + s + cs / 100;
 }
 
-// ---------------------------------------------------------------------------
 // SRT
-// ---------------------------------------------------------------------------
 
 function parseSrt(content: string): {
   clips: ParsedClip[];
@@ -170,9 +164,7 @@ function parseSrt(content: string): {
   return { clips, warnings };
 }
 
-// ---------------------------------------------------------------------------
 // VTT
-// ---------------------------------------------------------------------------
 
 function parseVtt(content: string): {
   clips: ParsedClip[];
@@ -225,9 +217,7 @@ function parseVtt(content: string): {
   return { clips, warnings };
 }
 
-// ---------------------------------------------------------------------------
 // LRC
-// ---------------------------------------------------------------------------
 
 function parseLrc(content: string): {
   clips: ParsedClip[];
@@ -283,9 +273,7 @@ function parseLrc(content: string): {
   return { clips, warnings };
 }
 
-// ---------------------------------------------------------------------------
 // ASS / SSA
-// ---------------------------------------------------------------------------
 
 function parseAss(content: string): {
   clips: ParsedClip[];

@@ -25,7 +25,6 @@ function makeProject(overrides: Partial<VoxMatchProject> = {}): VoxMatchProject 
     createdAt: 1,
     updatedAt: 1,
 
-    // legacy top-level mirrors (kept in sync with the default track)
     lyrics: track.lyrics,
     subtitles: track.subtitles,
     markers: track.markers,

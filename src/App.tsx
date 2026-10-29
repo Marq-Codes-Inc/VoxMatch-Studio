@@ -193,9 +193,6 @@ function App() {
     activeProjectRef.current = activeProject;
   }, [activeProject]);
 
-  // Persist settings + apply theme to DOM when no project is open.
-  // ProjectEditor owns theme application while editing so the two
-  // never fight each other.
   useEffect(() => {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
@@ -207,8 +204,6 @@ function App() {
     }
   }, [appSettings, activeProject]);
 
-  // Live-update DOM when the OS theme changes while in 'system' mode
-  // (only matters on the home screen; the editor handles its own).
   useEffect(() => {
     if (appSettings.theme !== 'system' || activeProject) return;
     if (typeof window === 'undefined' || !window.matchMedia) return;

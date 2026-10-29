@@ -5,13 +5,9 @@ const STORAGE_PREFIX = 'voxmatch-project-';
 const RECENT_PROJECTS_KEY = 'voxmatch-recent-projects';
 const MAX_RECENT_PROJECTS = 10;
 
-/**
- * Service for managing project persistence and loading
- */
+/* Service for managing project persistence and loading */
 class ProjectService {
-  /**
-   * Save project to localStorage
-   */
+  /* Save project to localStorage */
   saveToStorage(project: VoxMatchProject): void {
     try {
       // Create a clean copy for storage (remove non-serializable data)
@@ -26,9 +22,7 @@ class ProjectService {
     }
   }
 
-  /**
-   * Load project from localStorage
-   */
+  /* Load project from localStorage */
   loadFromStorage(projectId: string): VoxMatchProject | null {
     try {
       const stored = localStorage.getItem(`${STORAGE_PREFIX}${projectId}`);
@@ -42,9 +36,7 @@ class ProjectService {
     }
   }
 
-  /**
-   * Load all projects from localStorage
-   */
+  /* Load all projects from localStorage */
   loadAllFromStorage(): VoxMatchProject[] {
     const projects: VoxMatchProject[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -61,9 +53,7 @@ class ProjectService {
     return projects.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  /**
-   * Save project to file (via Electron)
-   */
+  /* Save project to file (via Electron) */
   async saveToFile(project: VoxMatchProject, filePath?: string): Promise<string | null> {
     if (!window.electronAPI) {
       throw new Error('Electron API not available');
@@ -85,9 +75,7 @@ class ProjectService {
     return savePath;
   }
 
-  /**
-   * Load project from file (via Electron)
-   */
+  /* Load project from file (via Electron) */
   async loadFromFile(): Promise<VoxMatchProject | null> {
     if (!window.electronAPI) {
       throw new Error('Electron API not available');
@@ -112,17 +100,13 @@ class ProjectService {
     return this.restoreFromStorage(project);
   }
 
-  /**
-   * Delete project from storage
-   */
+  /* Delete project from storage */
   deleteProject(projectId: string): void {
     localStorage.removeItem(`${STORAGE_PREFIX}${projectId}`);
     this.removeFromRecentProjects(projectId);
   }
 
-  /**
-   * Get recent projects
-   */
+  /* Get recent projects */
   getRecentProjects(): VoxMatchProject[] {
     try {
       const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
@@ -137,9 +121,7 @@ class ProjectService {
     }
   }
 
-  /**
-   * Prepare project for storage (remove non-serializable data)
-   */
+  /* Prepare project for storage (remove non-serializable data) */
   private prepareForStorage(project: VoxMatchProject): VoxMatchProject {
     return {
       ...project,
@@ -152,9 +134,7 @@ class ProjectService {
     };
   }
 
-  /**
-   * Restore project from storage (reinitialize ephemeral fields)
-   */
+  /* Restore project from storage (reinitialize ephemeral fields) */
   private restoreFromStorage(project: VoxMatchProject): VoxMatchProject {
     return {
       ...project,
@@ -168,9 +148,7 @@ class ProjectService {
     };
   }
 
-  /**
-   * Add project to recent list
-   */
+  /* Add project to recent list */
   private addToRecentProjects(project: VoxMatchProject): void {
     try {
       const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
@@ -187,9 +165,7 @@ class ProjectService {
     }
   }
 
-  /**
-   * Remove project from recent list
-   */
+  /* Remove project from recent list */
   private removeFromRecentProjects(projectId: string): void {
     try {
       const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
@@ -205,3 +181,4 @@ class ProjectService {
 }
 
 export const projectService = new ProjectService();
+

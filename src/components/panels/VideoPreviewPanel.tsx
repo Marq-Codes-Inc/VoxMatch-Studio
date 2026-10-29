@@ -283,8 +283,6 @@ export const VideoPreviewPanel: React.FC<VideoPreviewPanelProps> = ({
     ? videoAspect || stageAspectRatio
     : stageAspectRatio;
 
-  // Always-available toggle. The parent wires `setIsMaximizedVideo` to a
-  // guaranteed no-arg toggle, so passing the intended next value is safe.
   const handleToggleMaximize = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMaximizedVideo(!isMaximizedVideo);

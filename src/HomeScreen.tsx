@@ -30,7 +30,7 @@ interface HomeScreenProps {
   onOpenProject: (projectId: string) => void;
   onOpenProjectFile: () => void;
   onDeleteProject: (projectId: string) => void;
-  settings: AppSettings;                    // Required now
+  settings: AppSettings;                    
   handleSettingChange: (name: string, value: string | boolean | number | any) => void;
 }
 
@@ -64,9 +64,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     } else {
       root.classList.add('theme-dark');
     }
-    // Also apply data-theme attribute for CSS variables
     root.setAttribute('data-theme', settings.theme || 'dark');
-    // Apply primary color
     if (settings.primaryColor) {
       root.style.setProperty('--primary', settings.primaryColor);
     }
@@ -266,7 +264,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   );
 };
 
-// ==================== Internal Components ====================
+// Internal Components
 
 const SettingsModalWithSections: React.FC<{
   settings: AppSettings;

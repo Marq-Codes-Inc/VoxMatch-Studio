@@ -235,12 +235,6 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({ onDrop }) => {
   );
 
   return (
-    /*
-      FIX: this outer wrapper now has `overflow-hidden min-w-0` so any child
-      that refuses to shrink (long FileTabs, wide ruler, header controls)
-      gets clipped instead of pushing the column wider. The parent column
-      already constrains us; we just need to honor the constraint.
-    */
     <div
       className="bg-app-surface p-4 rounded-lg border border-app-border flex-grow flex flex-col h-full min-w-0 overflow-hidden"
       onDragOver={handleLocalDragOver}

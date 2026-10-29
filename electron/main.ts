@@ -468,7 +468,6 @@ ipcMain.handle('file:getMediaUrl', async (_event, filePath: string) => {
   return `media://local/${encoded}`;
 });
 
-// NEW — read any text file (subtitle/lyrics import)
 ipcMain.handle(
   'file:readText',
   async (_event, filePath: string): Promise<string> => {

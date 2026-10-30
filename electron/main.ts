@@ -14,8 +14,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 
-// Types
-
 interface FileMetadata {
   name: string;
   path: string;
@@ -34,10 +32,9 @@ interface SaveResult {
   path?: string;
 }
 
-// State
-
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
+let isForceClosing = false;
 const isDev = process.env.NODE_ENV === 'development';
 
 const APP_NAME = 'VoxMatch Studio';
@@ -46,8 +43,6 @@ const ICON_PATH = path.join(process.cwd(), 'public', 'assets', 'icon.ico');
 const VXM_EXTENSION = 'vxm';
 
 let pendingProjectFile: string | null = null;
-
-// Helpers
 
 function extractVxmPathFromArgs(args: string[]): string | null {
   for (const arg of args) {
@@ -89,8 +84,6 @@ function emitExportProgress(
   });
 }
 
-// Custom protocol
-
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'media',
@@ -104,16 +97,12 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-// GPU / Performance
-
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-gpu-compositing');
 app.commandLine.appendSwitch('disable-accelerated-video-decode');
 app.commandLine.appendSwitch('disable-accelerated-video-encode');
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('enable-smooth-scrolling');
-
-// Splash
 
 function createSplashScreen(): void {
   const iconPath = validateIconPath();
@@ -153,8 +142,6 @@ function createSplashScreen(): void {
   splashWindow.on('closed', () => (splashWindow = null));
 }
 
-// Icon
-
 function validateIconPath(): string | null {
   if (!fs.existsSync(ICON_PATH)) return null;
   try {
@@ -164,8 +151,6 @@ function validateIconPath(): string | null {
     return null;
   }
 }
-
-// Main window
 
 function createWindow(): void {
   const preloadPath = path.join(__dirname, 'preload.js');
@@ -196,6 +181,14 @@ function createWindow(): void {
 
   mainWindow.setMenu(null);
   Menu.setApplicationMenu(null);
+
+  // Intercept native close event
+  mainWindow.on('close', (event) => {
+    if (!isForceClosing) {
+      event.preventDefault();
+      mainWindow?.webContents.send('window:attempt-close');
+    }
+  });
 
   mainWindow.webContents.on('did-finish-load', () => {
     deliverPendingProjectFile();
@@ -271,8 +264,6 @@ function createWindow(): void {
   );
 }
 
-// Lifecycle
-
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -340,8 +331,6 @@ if (!gotTheLock) {
   });
 }
 
-// Utilities
-
 function getMimeTypeFromExtension(ext: string): string {
   const mimeTypes: Record<string, string> = {
     '.mp3': 'audio/mpeg',
@@ -373,8 +362,6 @@ function ensureVxmExtension(filePath: string): string {
     ? filePath
     : `${filePath}.${VXM_EXTENSION}`;
 }
-
-// Dialog IPC
 
 ipcMain.handle('dialog:openFile', async (_event, options: any = {}) => {
   if (!mainWindow) throw new Error('No active window');
@@ -420,8 +407,6 @@ ipcMain.handle('dialog:selectSaveLocation', async (_event, options: any = {}) =>
   const result = await dialog.showSaveDialog(mainWindow, saveOptions);
   return result.canceled ? null : result.filePath;
 });
-
-// File IPC
 
 ipcMain.handle(
   'file:getMetadata',
@@ -478,8 +463,6 @@ ipcMain.handle(
   },
 );
 
-// Project .vxm IPC
-
 ipcMain.handle('file:loadProject', async (_event, filePath: string): Promise<string> => {
   if (!validateFilePath(filePath)) {
     throw new Error(`Project file not found: ${filePath}`);
@@ -511,8 +494,6 @@ ipcMain.handle(
     return { success: true, path: finalPath };
   },
 );
-
-// Export IPC
 
 ipcMain.handle('export:video', async (_event, options: any = {}): Promise<SaveResult> => {
   if (!mainWindow) throw new Error('No active window');
@@ -629,8 +610,6 @@ ipcMain.handle(
   },
 );
 
-// DevTools IPC
-
 ipcMain.handle('dev:openDevTools', () => {
   if (isDev && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
@@ -651,8 +630,6 @@ ipcMain.handle('dev:toggleDevTools', () => {
   return false;
 });
 
-// App info IPC
-
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);
 ipcMain.handle('app:getPath', (_event, name: string) => app.getPath(name as any));
@@ -662,8 +639,6 @@ ipcMain.handle('app:notifyReady', () => {
   deliverPendingProjectFile();
   return true;
 });
-
-// Window control IPC
 
 ipcMain.on('window:minimize', () => mainWindow?.minimize());
 ipcMain.on('window:maximize', () => {
@@ -675,7 +650,10 @@ ipcMain.on('window:toggleFullscreen', () => {
   if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 
-// Error handling
+ipcMain.on('window:force-close', () => {
+  isForceClosing = true;
+  if (mainWindow) mainWindow.close();
+});
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);

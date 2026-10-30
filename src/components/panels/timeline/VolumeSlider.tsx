@@ -1,5 +1,6 @@
 // src/components/panels/timeline/VolumeSlider.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { clamp } from './constants';
 
 interface Props {
@@ -13,17 +14,25 @@ interface Props {
 export const VolumeSlider: React.FC<Props> = ({ value, min, max, step, onChange }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const sliderRef = useRef<HTMLDivElement | null>(null);
-  const [tooltipLeft, setTooltipLeft] = useState(0);
+  const [tooltipPos, setTooltipPos] = useState({ left: 0, top: 0 });
 
-  useEffect(() => {
+  const updateTooltipPosition = useCallback(() => {
     if (sliderRef.current) {
-      const trackWidth = sliderRef.current.clientWidth;
-      setTooltipLeft(((value - min) / (max - min)) * trackWidth);
+      const rect = sliderRef.current.getBoundingClientRect();
+      const percentage = (value - min) / (max - min);
+      const left = rect.left + rect.width * percentage;
+      const top = rect.top - 4; 
+      setTooltipPos({ left, top });
     }
   }, [value, min, max]);
 
+  useEffect(() => {
+    if (showTooltip) updateTooltipPosition();
+  }, [showTooltip, updateTooltipPosition]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    setShowTooltip(true);
     let rafId: number | null = null;
     let pendingValue = value;
     const flush = () => { rafId = null; onChange(pendingValue); };
@@ -40,9 +49,8 @@ export const VolumeSlider: React.FC<Props> = ({ value, min, max, step, onChange 
       onChange(pendingValue);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      setShowTooltip(false);
     };
-    setShowTooltip(true);
+    
     handleMouseMove(e.nativeEvent);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -51,15 +59,29 @@ export const VolumeSlider: React.FC<Props> = ({ value, min, max, step, onChange 
   useEffect(() => {
     const el = sliderRef.current;
     if (!el) return;
+    
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
+      setShowTooltip(true);
       onChange(clamp(value + Math.sign(-e.deltaY) * step, min, max));
     };
+
+    const handleMouseEnter = () => setShowTooltip(true);
+    const handleMouseLeave = () => setShowTooltip(false);
+
     el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
+    el.addEventListener('mouseenter', handleMouseEnter);
+    el.addEventListener('mouseleave', handleMouseLeave);
+    
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('mouseenter', handleMouseEnter);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+    };
   }, [value, min, max, step, onChange]);
 
   const pct = Math.round((value / max) * 100);
+
   return (
     <div
       ref={sliderRef}
@@ -81,17 +103,18 @@ export const VolumeSlider: React.FC<Props> = ({ value, min, max, step, onChange 
           <div className="w-1 h-1 rounded-full bg-app-gray" />
         </div>
       </div>
-      {showTooltip && (
-        <div className="absolute top-[-25px] left-0">
-          <div
-            className="relative bg-app-card text-xs text-app-text font-bold px-2 py-1 rounded-md shadow-md border border-app-border"
-            style={{ left: tooltipLeft, transform: 'translateX(-50%)' }}
-          >
+
+      {showTooltip && createPortal(
+        <div 
+          className="fixed z-[9999] pointer-events-none -translate-x-1/2 -translate-y-full transition-opacity duration-150"
+          style={{ left: tooltipPos.left, top: tooltipPos.top }}
+        >
+          <div className="bg-app-card text-xs text-app-text font-bold px-2 py-1 rounded-md shadow-lg border border-app-border whitespace-nowrap">
             {pct}%
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 };
-

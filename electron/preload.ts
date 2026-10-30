@@ -37,6 +37,13 @@ const electronAPI = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  
+  onWindowClose: (callback: () => void) => {
+    const subscription = () => callback();
+    ipcRenderer.on('window:attempt-close', subscription);
+    return () => ipcRenderer.removeListener('window:attempt-close', subscription);
+  },
+  forceCloseWindow: () => ipcRenderer.send('window:force-close'),
 
   on: (channel: string, callback: (...args: any[]) => void) => {
     const subscription = (_event: any, ...args: any[]) => callback(...args);

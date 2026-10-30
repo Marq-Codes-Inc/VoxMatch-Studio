@@ -59,6 +59,8 @@ declare global {
       closeWindow: () => void;
       notifyAppReady: () => Promise<boolean>;
       on: (channel: string, callback: (...args: any[]) => void) => () => void;
+      onWindowClose?: (callback: () => void) => () => void;
+      forceCloseWindow?: () => void;
     };
     __REACT_APP_READY__?: boolean;
   }

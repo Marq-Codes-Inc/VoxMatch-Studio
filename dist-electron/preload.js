@@ -21,6 +21,12 @@ var electronAPI = {
   minimizeWindow: () => import_electron.ipcRenderer.send("window:minimize"),
   maximizeWindow: () => import_electron.ipcRenderer.send("window:maximize"),
   closeWindow: () => import_electron.ipcRenderer.send("window:close"),
+  onWindowClose: (callback) => {
+    const subscription = () => callback();
+    import_electron.ipcRenderer.on("window:attempt-close", subscription);
+    return () => import_electron.ipcRenderer.removeListener("window:attempt-close", subscription);
+  },
+  forceCloseWindow: () => import_electron.ipcRenderer.send("window:force-close"),
   on: (channel, callback) => {
     const subscription = (_event, ...args) => callback(...args);
     import_electron.ipcRenderer.on(channel, subscription);

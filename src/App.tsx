@@ -17,6 +17,8 @@ import {
   VXM_EXTENSION,
 } from './utils/projectFile';
 import { invalidateProjectSnapshot } from './utils/projectSnapshot';
+import { Modal } from './components/ui/Modal';
+import { UnsavedChangesModalContent } from './components/modals/UnsavedChangesModalContent';
 
 const SETTINGS_KEY = 'voxmatch-settings';
 const PROJECT_KEY_PREFIX = 'voxmatch-project-';
@@ -178,11 +180,19 @@ function applyThemeToDom(theme: AppSettings['theme'], primaryColor?: string) {
   }
 }
 
+type PendingCloseAction =
+  | { kind: 'close-app' }
+  | { kind: 'close-project' };
+
 function App() {
   const [activeProject, setActiveProject] = useState<VoxMatchProject | null>(null);
   const [projects, setProjects] = useState<VoxMatchProject[]>([]);
   const [editorKey, setEditorKey] = useState(0);
   const [appSettings, setAppSettings] = useState<AppSettings>(loadSettings);
+
+  // Modal state for unsaved-changes confirmation
+  const [pendingCloseAction, setPendingCloseAction] =
+    useState<PendingCloseAction | null>(null);
 
   const isUpdatingRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -303,6 +313,23 @@ function App() {
     window.electronAPI.notifyAppReady();
     return unsubscribe;
   }, [loadProjectFromPath]);
+
+  // Handle native window close request from Electron
+  useEffect(() => {
+    if (!window.electronAPI?.on) return;
+
+    const unsubscribe = window.electronAPI.on('window:attempt-close', () => {
+      const current = activeProjectRef.current;
+      if (!current || current.isSaved) {
+        window.electronAPI?.forceCloseWindow?.();
+        return;
+      }
+      // Trigger the modal
+      setPendingCloseAction({ kind: 'close-app' });
+    });
+
+    return unsubscribe;
+  }, []);
 
   const handleSettingChange = useCallback((name: string, value: any) => {
     setAppSettings((prev) => ({ ...prev, [name]: value } as AppSettings));
@@ -539,6 +566,17 @@ function App() {
 
   const handleCloseProject = useCallback(() => {
     const current = activeProjectRef.current;
+    if (current && !current.isSaved) {
+      // Ask for confirmation before discarding unsaved changes
+      setPendingCloseAction({ kind: 'close-project' });
+      return;
+    }
+    performCloseProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const performCloseProject = useCallback(() => {
+    const current = activeProjectRef.current;
     if (current) {
       persistProject({ ...current, updatedAt: Date.now() });
     }
@@ -549,6 +587,89 @@ function App() {
       saveTimeoutRef.current = null;
     }
   }, [persistProject]);
+
+  const performCloseApp = useCallback(() => {
+    window.electronAPI?.forceCloseWindow?.();
+  }, []);
+
+  const handleUnsavedSave = useCallback(async () => {
+    const action = pendingCloseAction;
+    setPendingCloseAction(null);
+
+    const current = activeProjectRef.current;
+    if (!current) {
+      if (action?.kind === 'close-app') performCloseApp();
+      else performCloseProject();
+      return;
+    }
+
+    try {
+      if (current.projectFilePath && window.electronAPI) {
+        const updatedProject: VoxMatchProject = {
+          ...current,
+          isSaved: true,
+          updatedAt: Date.now(),
+        };
+        const ipcPayload = JSON.parse(serializeProject(updatedProject));
+        await window.electronAPI.saveProject(ipcPayload, current.projectFilePath);
+        persistProject(updatedProject);
+        lastProjectRef.current = updatedProject;
+        setActiveProject(updatedProject);
+      } else if (window.electronAPI) {
+        // No path yet — prompt for one via Save As
+        const selected = await window.electronAPI.selectSaveLocation({
+          title: 'Save Project',
+          defaultPath: `${current.name}.${VXM_EXTENSION}`,
+          filters: [
+            { name: 'VoxMatch Project', extensions: [VXM_EXTENSION] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
+        if (!selected) {
+          // User cancelled Save As → don't close
+          return;
+        }
+        const filePath = ensureVxmExtension(selected);
+        const updatedProject: VoxMatchProject = {
+          ...current,
+          name: basenameWithoutExtension(filePath) || current.name,
+          projectFilePath: filePath,
+          isSaved: true,
+          updatedAt: Date.now(),
+        };
+        const ipcPayload = JSON.parse(serializeProject(updatedProject));
+        await window.electronAPI.saveProject(ipcPayload, filePath);
+        persistProject(updatedProject);
+        lastProjectRef.current = updatedProject;
+        setActiveProject(updatedProject);
+      } else {
+        // No Electron — just persist to localStorage
+        persistProject({ ...current, isSaved: true, updatedAt: Date.now() });
+      }
+    } catch (err) {
+      console.error('Failed to save before close:', err);
+      alert(
+        `Failed to save project:\n${
+          err instanceof Error ? err.message : 'Unknown error'
+        }`,
+      );
+      return;
+    }
+
+    if (action?.kind === 'close-app') performCloseApp();
+    else performCloseProject();
+  }, [pendingCloseAction, persistProject, performCloseApp, performCloseProject]);
+
+  const handleUnsavedDiscard = useCallback(() => {
+    const action = pendingCloseAction;
+    setPendingCloseAction(null);
+    if (action?.kind === 'close-app') performCloseApp();
+    else performCloseProject();
+  }, [pendingCloseAction, performCloseApp, performCloseProject]);
+
+  const handleUnsavedCancel = useCallback(() => {
+    setPendingCloseAction(null);
+  }, []);
 
   if (!activeProject) {
     return (
@@ -565,16 +686,29 @@ function App() {
   }
 
   return (
-    <ProjectEditor
-      key={`${activeProject.id}-${editorKey}`}
-      project={activeProject}
-      onProjectUpdate={handleProjectUpdate}
-      onSaveProject={handleSaveProject}
-      onSaveProjectAs={handleSaveProjectAs}
-      onCloseProject={handleCloseProject}
-      onThemeChange={handleThemeChange}
-      currentTheme={appSettings.theme || 'dark'}
-    />
+    <>
+      <ProjectEditor
+        key={`${activeProject.id}-${editorKey}`}
+        project={activeProject}
+        onProjectUpdate={handleProjectUpdate}
+        onSaveProject={handleSaveProject}
+        onSaveProjectAs={handleSaveProjectAs}
+        onCloseProject={handleCloseProject}
+        onThemeChange={handleThemeChange}
+        currentTheme={appSettings.theme || 'dark'}
+      />
+      <Modal
+        isOpen={pendingCloseAction !== null}
+        onClose={handleUnsavedCancel}
+        title="Unsaved Changes"
+      >
+        <UnsavedChangesModalContent
+          onSave={handleUnsavedSave}
+          onDiscard={handleUnsavedDiscard}
+          onCancel={handleUnsavedCancel}
+        />
+      </Modal>
+    </>
   );
 }
 

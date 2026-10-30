@@ -39,6 +39,7 @@ var fs = __toESM(require("fs"));
 var import_url = require("url");
 var mainWindow = null;
 var splashWindow = null;
+var isForceClosing = false;
 var isDev = process.env.NODE_ENV === "development";
 var APP_NAME = "VoxMatch Studio";
 var APP_ID = "com.voxmatch.studio";
@@ -159,6 +160,12 @@ function createWindow() {
   });
   mainWindow.setMenu(null);
   import_electron.Menu.setApplicationMenu(null);
+  mainWindow.on("close", (event) => {
+    if (!isForceClosing) {
+      event.preventDefault();
+      mainWindow?.webContents.send("window:attempt-close");
+    }
+  });
   mainWindow.webContents.on("did-finish-load", () => {
     deliverPendingProjectFile();
   });
@@ -561,6 +568,10 @@ import_electron.ipcMain.on("window:maximize", () => {
 import_electron.ipcMain.on("window:close", () => mainWindow?.close());
 import_electron.ipcMain.on("window:toggleFullscreen", () => {
   if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+});
+import_electron.ipcMain.on("window:force-close", () => {
+  isForceClosing = true;
+  if (mainWindow) mainWindow.close();
 });
 process.on("uncaughtException", (error) => {
   console.error("\u274C Uncaught Exception:", error);

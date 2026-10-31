@@ -14,6 +14,8 @@ var electronAPI = {
   exportVideo: (options) => import_electron.ipcRenderer.invoke("export:video", options),
   exportSubtitles: (options) => import_electron.ipcRenderer.invoke("export:subtitles", options),
   writeTextFile: (options) => import_electron.ipcRenderer.invoke("export:writeText", options),
+  // Transcription bridge with optional prompt for forced alignment
+  transcribeAudio: (buffer, mimeType, apiKey, prompt) => import_electron.ipcRenderer.invoke("audio:transcribe", buffer, mimeType, apiKey, prompt),
   getAppVersion: () => import_electron.ipcRenderer.invoke("app:getVersion"),
   getPlatform: () => import_electron.ipcRenderer.invoke("app:getPlatform"),
   getPath: (name) => import_electron.ipcRenderer.invoke("app:getPath", name),

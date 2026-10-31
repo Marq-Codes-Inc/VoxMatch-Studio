@@ -133,6 +133,11 @@ export interface ProjectEditorContextValue {
   ) => Promise<ImportSubtitleResult | null>;
 
   openStageSettingsModal: () => void;
+
+  // --- AI Alignment (Fine-Tuning) State ---
+  isAligning: boolean;
+  alignProgress: number;
+  handleAlignTimestamps: (file: ImportedMediaFile, currentText: string) => Promise<void>;
 }
 
 const ProjectEditorContext = createContext<ProjectEditorContextValue | null>(null);

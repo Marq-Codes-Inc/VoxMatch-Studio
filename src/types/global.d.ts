@@ -51,6 +51,9 @@ declare global {
         filters?: any[];
         jobId?: string;
       }) => Promise<{ success: boolean; path?: string }>;
+
+      transcribeAudio: (buffer: ArrayBuffer, mimeType: string, apiKey: string, prompt?: string) => Promise<any>;
+
       getAppVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
       getPath: (name: string) => Promise<string>;

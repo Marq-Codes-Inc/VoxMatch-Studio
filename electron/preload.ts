@@ -29,6 +29,10 @@ const electronAPI = {
     jobId?: string;
   }) => ipcRenderer.invoke('export:writeText', options),
 
+  // Transcription bridge with optional prompt for forced alignment
+  transcribeAudio: (buffer: ArrayBuffer, mimeType: string, apiKey: string, prompt?: string) =>
+    ipcRenderer.invoke('audio:transcribe', buffer, mimeType, apiKey, prompt),
+
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
   getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),

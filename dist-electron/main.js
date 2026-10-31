@@ -552,6 +552,39 @@ import_electron.ipcMain.handle("dev:toggleDevTools", () => {
   }
   return false;
 });
+import_electron.ipcMain.handle(
+  "audio:transcribe",
+  async (_event, buffer, mimeType, apiKey, prompt) => {
+    try {
+      if (!apiKey) throw new Error("Missing Groq API Key");
+      const blob = new Blob([buffer], { type: mimeType });
+      const formData = new FormData();
+      formData.append("file", blob, "audio.mp3");
+      formData.append("model", "whisper-large-v3-turbo");
+      formData.append("response_format", "verbose_json");
+      formData.append("language", "en");
+      if (prompt) {
+        formData.append("prompt", prompt);
+      }
+      const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: formData
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Groq API Error]", errorText);
+        throw new Error(`Groq API returned ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("[Main Process] Transcription failed:", error);
+      throw error;
+    }
+  }
+);
 import_electron.ipcMain.handle("app:getVersion", () => import_electron.app.getVersion());
 import_electron.ipcMain.handle("app:getPlatform", () => process.platform);
 import_electron.ipcMain.handle("app:getPath", (_event, name) => import_electron.app.getPath(name));

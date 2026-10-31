@@ -15,17 +15,16 @@
     "electron:dev": "npm run build:electron && concurrently -k \"vite\" \"npm run electron\"",
     "electron:build": "npm run build && npm run build:electron && electron-builder",
     "preview": "vite preview",
-
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist dist-electron release node_modules/.vite",
     "clean:all": "rimraf dist dist-electron release node_modules"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -77,11 +76,17 @@
     ],
     "win": {
       "icon": "public/assets/icon.ico",
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "mac": {
       "icon": "public/assets/icon.icns",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.video",
       "extendInfo": {
         "CFBundleDocumentTypes": [
@@ -89,16 +94,23 @@
             "CFBundleTypeName": "VoxMatch Project",
             "CFBundleTypeRole": "Editor",
             "LSHandlerRank": "Owner",
-            "LSItemContentTypes": ["com.voxmatch.project"]
+            "LSItemContentTypes": [
+              "com.voxmatch.project"
+            ]
           }
         ],
         "UTExportedTypeDeclarations": [
           {
             "UTTypeIdentifier": "com.voxmatch.project",
             "UTTypeDescription": "VoxMatch Studio Project",
-            "UTTypeConformsTo": ["public.data", "public.json"],
+            "UTTypeConformsTo": [
+              "public.data",
+              "public.json"
+            ],
             "UTTypeTagSpecification": {
-              "public.filename-extension": ["vxm"]
+              "public.filename-extension": [
+                "vxm"
+              ]
             }
           }
         ]
@@ -106,7 +118,10 @@
     },
     "linux": {
       "icon": "public/assets/icon.png",
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "AudioVideo"
     },
     "nsis": {

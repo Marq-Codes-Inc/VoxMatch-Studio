@@ -7,6 +7,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from 'react';
+import { Loader } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import { TopBar } from './components/editor/TopBar';
 import { ContextMenu } from './components/editor/ContextMenu';
@@ -161,6 +162,12 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     onFileActivate,
     isVuOverlayEnabled,
     toggleVuOverlay,
+    isTranscribing,
+    transcribeStatus,
+    transcribeProgress,
+    transcriptionError,
+    setTranscriptionError,
+    setTranscribeFile,
   } = editor;
 
   const {
@@ -248,7 +255,8 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
     isHelpModalOpen ||
     isExportModalOpen ||
     isFileInfoModalOpen ||
-    isStageSettingsModalOpen;
+    isStageSettingsModalOpen ||
+    isTranscribing;
 
   useLayoutEffect(() => {
     const slot = videoSlotRef.current;
@@ -473,6 +481,9 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       toggleVuOverlay,
       importSubtitleFile: editor.importSubtitleFile,
       openStageSettingsModal,
+      isAligning: editor.isAligning,
+      alignProgress: editor.alignProgress,
+      handleAlignTimestamps: editor.handleAlignTimestamps,
     }),
     [
       isPlaying,
@@ -561,6 +572,9 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       toggleVuOverlay,
       editor.importSubtitleFile,
       openStageSettingsModal,
+      editor.isAligning,
+      editor.alignProgress,
+      editor.handleAlignTimestamps,
     ],
   );
 
@@ -855,6 +869,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
           contextMenu={contextMenu}
           onItemClick={handleContextMenuItemClick}
           activeFileId={activeFileId}
+          projectMode={project.mode}
         />
 
         <Modal
@@ -930,6 +945,61 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
             setStageStyle={wrappedSetStageStyle}
             onClose={() => setIsStageSettingsModalOpen(false)}
           />
+        </Modal>
+
+        {/* TRANSCRIPTION MODAL */}
+        <Modal
+          isOpen={isTranscribing}
+          onClose={() => {
+            setTranscribeFile(null);
+            setTranscriptionError(null);
+          }}
+          title="Transcribing Audio"
+        >
+          <div className="flex flex-col items-center justify-center p-8 space-y-4">
+            
+            {!transcriptionError ? (
+              <>
+                <Loader className="animate-spin text-primary" size={32} />
+                <div className="w-full space-y-2">
+                  <div className="flex justify-between text-xs text-app-gray mb-1">
+                    <span>{transcribeStatus}</span>
+                    <span>{transcribeProgress}%</span>
+                  </div>
+                  <div className="w-full bg-app-gray-light rounded-full h-2.5 overflow-hidden border border-app-border">
+                    <div
+                      className="bg-primary h-full rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${transcribeProgress}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-app-gray text-center max-w-xs mt-2">
+                  This may take a moment depending on the length of the file. Please do
+                  not close the app.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <span className="text-red-500 text-xl font-bold">!</span>
+                </div>
+                <h3 className="text-app-text font-medium text-center">Transcription Failed</h3>
+                <div className="bg-red-500/10 border border-red-500/20 rounded-md p-3 w-full text-center">
+                  <p className="text-sm text-red-400 break-words">{transcriptionError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setTranscribeFile(null);
+                    setTranscriptionError(null);
+                  }}
+                  className="px-4 py-2 bg-app-gray-light rounded-md hover:bg-app-gray text-sm text-app-text mt-2"
+                >
+                  Close
+                </button>
+              </>
+            )}
+            
+          </div>
         </Modal>
 
         {isVuOverlayEnabled && (

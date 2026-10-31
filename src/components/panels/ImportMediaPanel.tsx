@@ -227,6 +227,7 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
               const isActive = activeFileId === file.id;
               const isLoading = loadingFileId === file.id;
               const isLoaded = file.loaded;
+              
               return (
                 <li
                   key={file.id}
@@ -268,10 +269,12 @@ export const ImportMediaPanel: React.FC<ImportMediaPanelProps> = ({
                       </span>
                     </div>
                   </div>
+                  
                   <div className="flex items-center space-x-1 flex-shrink-0">
                     {isLoading && (
                       <Loader className="animate-spin text-primary" size={16} />
                     )}
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

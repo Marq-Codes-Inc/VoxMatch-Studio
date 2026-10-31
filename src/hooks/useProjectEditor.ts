@@ -1,3 +1,4 @@
+// src/hooks/useProjectEditor.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { VoxMatchProject } from '../types/project';
 import { ImportedMediaFile, LyricLine } from '../types/types';
@@ -7,6 +8,7 @@ import { generateId } from '../utils/utils';
 import { parseSubtitleFile, isSubtitleFileName } from '../utils/subtitleImport';
 import type { ImportSubtitleResult } from '../utils/subtitleImport';
 import { extractVideoPoster } from '../utils/mediaPoster';
+import { transcribeMediaFile, getAudioSegments } from '../utils/audioTranscription';
 
 export function useProjectEditor(
   initialProject: VoxMatchProject,
@@ -28,6 +30,17 @@ export function useProjectEditor(
   const [isFileInfoModalOpen, setIsFileInfoModalOpen] = useState(false);
   const [isStageSettingsModalOpen, setIsStageSettingsModalOpen] = useState(false);
   const [selectedFileInfo, setSelectedFileInfo] = useState<ImportedMediaFile | null>(null);
+
+  // Transcription state
+  const [transcribeFile, setTranscribeFile] = useState<ImportedMediaFile | null>(null);
+  const [transcribeStatus, setTranscribeStatus] = useState('Extracting audio...');
+  const [transcribeProgress, setTranscribeProgress] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+
+  // Alignment (Fine-tuning) state
+  const [isAligning, setIsAligning] = useState(false);
+  const [alignProgress, setAlignProgress] = useState(0);
 
   const [isVuOverlayEnabled, setIsVuOverlayEnabled] = useState(false);
   const toggleVuOverlay = useCallback(() => setIsVuOverlayEnabled((v) => !v), []);
@@ -94,6 +107,11 @@ export function useProjectEditor(
     importClips,
     switchActiveFile,
     updateFileAfterLoad,
+    handleBatchAddLyrics,
+    handleBatchAddSubtitles,
+    setActiveLeftPanelTab,
+    lyrics,
+    subtitles,
   } = projectState;
 
   const { loadMediaIntoTimeline, cleanupMedia, currentTime } = mediaPlayback;
@@ -292,6 +310,9 @@ export function useProjectEditor(
         case 'activate':
           onFileActivate(file);
           break;
+        case 'transcribe':
+          setTranscribeFile(file);
+          break;
         case 'remove': {
           if (activeFileId === file.id) cleanupMedia();
           setImportedFiles((p) => p.filter((f) => f.id !== file.id));
@@ -316,6 +337,111 @@ export function useProjectEditor(
       switchActiveFile,
     ],
   );
+
+  // Handle the actual transcription process when triggered from the context menu
+  useEffect(() => {
+    if (!transcribeFile) return;
+
+    const runTranscription = async () => {
+      setIsTranscribing(true);
+      setTranscriptionError(null);
+      setTranscribeStatus('Extracting audio...');
+      setTranscribeProgress(0);
+      try {
+        let sourceFile = transcribeFile.file;
+        if (!sourceFile && transcribeFile.url) {
+          const res = await fetch(transcribeFile.url);
+          if (!res.ok) throw new Error("Could not load file from URL");
+          const blob = await res.blob();
+          sourceFile = new File([blob], transcribeFile.name, { type: transcribeFile.type });
+        }
+        
+        if (!sourceFile) throw new Error("No file data available to transcribe.");
+
+        const clips = await transcribeMediaFile(sourceFile, (msg, percent) => {
+          setTranscribeStatus(msg);
+          setTranscribeProgress(percent);
+        });
+        
+        if (clips.length === 0) {
+          throw new Error("No speech detected in this audio file.");
+        } 
+        
+        if (initialProject.mode === 'lyrics') {
+          setActiveLeftPanelTab('lyrics');
+          handleBatchAddLyrics(clips);
+        } else {
+          setActiveLeftPanelTab('subtitles');
+          handleBatchAddSubtitles(clips);
+        }
+        markAsUnsaved();
+        
+        await new Promise(r => setTimeout(r, 800));
+        
+        setIsTranscribing(false);
+        setTranscribeFile(null);
+        setTranscribeProgress(0);
+      } catch (err) {
+        console.error(err);
+        setTranscriptionError(err instanceof Error ? err.message : 'Transcription failed');
+      }
+    };
+
+    runTranscription();
+  }, [transcribeFile, setActiveLeftPanelTab, handleBatchAddLyrics, handleBatchAddSubtitles, markAsUnsaved, initialProject.mode]);
+
+  // Handle AI Fine-Tuning (Forced Alignment)
+  const handleAlignTimestamps = useCallback(async (file: ImportedMediaFile) => {
+    setIsAligning(true);
+    setAlignProgress(0);
+    try {
+      let sourceFile = file.file;
+      if (!sourceFile && file.url) {
+        const res = await fetch(file.url);
+        const blob = await res.blob();
+        sourceFile = new File([blob], file.name, { type: file.type });
+      }
+      if (!sourceFile) throw new Error("No file data available.");
+
+      // 1. Get the spoken timestamps from the audio (ignoring text)
+      const segments = await getAudioSegments(sourceFile, (msg, percent) => {
+        setAlignProgress(percent);
+      });
+
+      if (segments.length === 0) {
+        throw new Error("No vocal segments detected in the audio.");
+      }
+
+      // 2. Map the spoken timestamps to YOUR existing clips
+      const targetClips = activeLeftPanelTab === 'lyrics' ? [...lyrics] : [...subtitles];
+      
+      const updatedClips = targetClips.map((clip, index) => {
+        const segment = segments[index];
+        if (segment) {
+          return {
+            ...clip,
+            startTime: segment.startTime,
+            endTime: segment.endTime,
+          };
+        }
+        return clip;
+      });
+
+      // 3. Update the timeline
+      if (activeLeftPanelTab === 'lyrics') {
+        setLyrics(updatedClips);
+      } else {
+        setSubtitles(updatedClips);
+      }
+      markAsUnsaved();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Alignment failed');
+    } finally {
+      setIsAligning(false);
+      setAlignProgress(0);
+    }
+  }, [activeLeftPanelTab, lyrics, subtitles, setLyrics, setSubtitles, markAsUnsaved]);
 
   const handleExport = useCallback(() => setIsExportModalOpen(true), []);
   const handleSaveProject = useCallback(() => void onSaveProject?.(), [onSaveProject]);
@@ -384,5 +510,16 @@ export function useProjectEditor(
     isVuOverlayEnabled,
     toggleVuOverlay,
     importSubtitleFile,
+    // Transcription state
+    isTranscribing,
+    transcribeStatus,
+    transcribeProgress,
+    transcriptionError,
+    setTranscriptionError,
+    setTranscribeFile,
+    // Alignment state
+    isAligning,
+    alignProgress,
+    handleAlignTimestamps,
   };
 }

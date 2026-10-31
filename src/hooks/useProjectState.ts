@@ -1,3 +1,4 @@
+// src/hooks/useProjectState.ts
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   AppSettings,
@@ -689,7 +690,16 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     (newLyrics: Omit<LyricLine, 'id'>[]) => {
       if (newLyrics.length === 0) return;
       commit('batch-add-lyrics', () => {
-        setLyrics((prev) => [...prev, ...newLyrics.map((l) => ({ ...l, id: generateId() }))]);
+        setLyrics((prev) => {
+          const withIds = newLyrics.map((l) => ({
+            ...l,
+            id: generateId(),
+            startTime: Number(l.startTime),
+            endTime: Number(l.endTime),
+          }));
+
+          return [...prev, ...withIds].sort((a, b) => a.startTime - b.startTime);
+        });
       });
     },
     [commit, setLyrics],
@@ -699,10 +709,16 @@ export function useProjectState(project: VoxMatchProject): UseProjectStateReturn
     (newSubtitles: Omit<LyricLine, 'id'>[]) => {
       if (newSubtitles.length === 0) return;
       commit('batch-add-subtitles', () => {
-        setSubtitles((prev) => [
-          ...prev,
-          ...newSubtitles.map((s) => ({ ...s, id: generateId() })),
-        ]);
+        setSubtitles((prev) => {
+          const withIds = newSubtitles.map((s) => ({
+            ...s,
+            id: generateId(),
+            startTime: Number(s.startTime),
+            endTime: Number(s.endTime),
+          }));
+
+          return [...prev, ...withIds].sort((a, b) => a.startTime - b.startTime);
+        });
       });
     },
     [commit, setSubtitles],

@@ -630,6 +630,49 @@ ipcMain.handle('dev:toggleDevTools', () => {
   return false;
 });
 
+// --- TRANSCRIPTION HANDLER ---
+ipcMain.handle(
+  'audio:transcribe',
+  async (_event, buffer: ArrayBuffer, mimeType: string, apiKey: string, prompt?: string) => {
+    try {
+      if (!apiKey) throw new Error('Missing Groq API Key');
+      
+      const blob = new Blob([buffer], { type: mimeType });
+      const formData = new FormData();
+      
+      formData.append('file', blob, 'audio.mp3');
+      formData.append('model', 'whisper-large-v3-turbo');
+      formData.append('response_format', 'verbose_json');
+      formData.append('language', 'en');
+
+      // If a prompt is provided, pass it to Whisper for forced alignment
+      if (prompt) {
+        formData.append('prompt', prompt);
+      }
+
+      const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Groq API Error]', errorText);
+        throw new Error(`Groq API returned ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Main Process] Transcription failed:', error);
+      throw error;
+    }
+  }
+);
+// -----------------------------
+
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);
 ipcMain.handle('app:getPath', (_event, name: string) => app.getPath(name as any));

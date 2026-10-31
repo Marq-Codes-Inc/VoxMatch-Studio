@@ -178,7 +178,6 @@ export interface VoxMatchProject {
   projectFilePath?: string;
   schemaVersion?: number;
 
-  // Top-level properties (mirror the active track; what existing UI reads/writes)
   lyrics: LyricLine[];
   subtitles: LyricLine[];
   markers: TimelineMarker[];
@@ -186,8 +185,6 @@ export interface VoxMatchProject {
   lyricTextStyle: TextStyle;
   subtitleTextStyle: TextStyle;
   zoom: number;
-
-  // Track map for multi-file support
   tracks: Record<string, FileTrack>;
 }
 
@@ -199,3 +196,4 @@ export interface ProjectMetadata {
 }
 
 export const VXM_SCHEMA_VERSION = 2;
+

@@ -7,6 +7,12 @@ export interface AlignUpdate {
   endTime: number;
 }
 
+export interface WordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export function startAlignmentWorker(
   file: File,
   clips: LyricLine[],

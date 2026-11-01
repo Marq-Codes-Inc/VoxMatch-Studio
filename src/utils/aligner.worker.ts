@@ -1,8 +1,13 @@
 // src/utils/aligner.worker.ts
 import { pipeline, env } from '@huggingface/transformers';
 
+// Determine if we are running in production (Electron file://) or development (Vite http://)
+const isProduction = self.location.protocol === 'file:';
+
 env.allowLocalModels = true;
-env.localModelPath = '/models/';
+// In production, the public folder is bundled at the root level, so we use './models/'
+// In dev, Vite serves from the root, so '/models/' works
+env.localModelPath = isProduction ? './models/' : '/models/';
 
 let transcriber: any = null;
 let isCancelled = false;

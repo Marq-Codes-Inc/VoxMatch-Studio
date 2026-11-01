@@ -1,5 +1,5 @@
 // src/components/panels/EditPanel/LyricsList.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CheckSquare, Square, GripVertical, Trash2 } from 'lucide-react';
 import { LyricLine } from '../../../types/types';
 import { TimeInput } from './helpers';
@@ -25,7 +25,30 @@ export const LyricsList: React.FC<LyricsListProps> = ({
 }) => {
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; position: 'above' | 'below' } | null>(null);
-  const textareaRefs = React.useRef<Map<string, HTMLTextAreaElement>>(new Map());
+  const textareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+
+  useEffect(() => {
+    textareaRefs.current.forEach((el) => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [list]);
+
+  const handleTextareaChange = (id: string, value: string) => {
+    onChange(id, 'text', value);
+    const el = textareaRefs.current.get(id);
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
@@ -110,7 +133,7 @@ export const LyricsList: React.FC<LyricsListProps> = ({
             setDraggedItemId(null);
             setDropTarget(null);
           }}
-          className={`relative flex flex-wrap items-center p-3 rounded-md border cursor-default ${
+          className={`relative flex flex-wrap items-start p-3 rounded-md border cursor-default ${
             selectedIds.has(line.id)
               ? 'bg-primary/10 border-2 border-dashed border-primary shadow-md'
               : activeClipId === line.id
@@ -120,13 +143,13 @@ export const LyricsList: React.FC<LyricsListProps> = ({
         >
           {dropTarget?.id === line.id && <DropIndicator position={dropTarget.position} />}
 
-          <div className="cursor-move mr-2 text-app-gray hover:text-app-text flex-shrink-0">
+          <div className="cursor-move mr-2 mt-1.5 text-app-gray hover:text-app-text flex-shrink-0">
             <GripVertical size={14} />
           </div>
 
           <button
             onClick={() => toggleSelection(line.id)}
-            className="mr-3 text-app-icon-color flex-shrink-0"
+            className="mr-3 mt-1 text-app-icon-color flex-shrink-0"
           >
             {selectedIds.has(line.id) ? (
               <CheckSquare size={18} className="text-primary" />
@@ -137,16 +160,23 @@ export const LyricsList: React.FC<LyricsListProps> = ({
 
           <textarea
             ref={(el) => {
-              if (el) textareaRefs.current.set(line.id, el);
-              else textareaRefs.current.delete(line.id);
+              if (el) {
+                textareaRefs.current.set(line.id, el);
+                el.style.height = 'auto';
+                el.style.height = `${el.scrollHeight}px`;
+              } else {
+                textareaRefs.current.delete(line.id);
+              }
             }}
             spellCheck={false}
             value={line.text}
-            onChange={(e) => onChange(line.id, 'text', e.target.value)}
-            className={`flex-1 min-w-[150px] bg-transparent border-none outline-none text-app-text text-sm mr-2 resize-none ${
+            onChange={(e) => handleTextareaChange(line.id, e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={`flex-1 min-w-[150px] bg-transparent border-none outline-none text-app-text text-sm mr-2 resize-none overflow-hidden ${
               activeClipId === line.id ? 'font-medium' : ''
             }`}
             rows={1}
+            placeholder="Enter text..."
           />
 
           <div className="flex items-center mt-2 md:mt-0 ml-auto flex-shrink-0">

@@ -534,24 +534,6 @@ import_electron.ipcMain.handle(
     }
   }
 );
-import_electron.ipcMain.handle("dev:openDevTools", () => {
-  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.openDevTools({ mode: "detach" });
-    return true;
-  }
-  return false;
-});
-import_electron.ipcMain.handle("dev:toggleDevTools", () => {
-  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.webContents.isDevToolsOpened()) {
-      mainWindow.webContents.closeDevTools();
-    } else {
-      mainWindow.webContents.openDevTools({ mode: "detach" });
-    }
-    return true;
-  }
-  return false;
-});
 import_electron.ipcMain.handle(
   "audio:transcribe",
   async (_event, buffer, mimeType, apiKey, prompt) => {
@@ -563,6 +545,8 @@ import_electron.ipcMain.handle(
       formData.append("model", "whisper-large-v3-turbo");
       formData.append("response_format", "verbose_json");
       formData.append("language", "en");
+      formData.append("timestamp_granularities[]", "word");
+      formData.append("timestamp_granularities[]", "segment");
       if (prompt) {
         formData.append("prompt", prompt);
       }
@@ -585,6 +569,24 @@ import_electron.ipcMain.handle(
     }
   }
 );
+import_electron.ipcMain.handle("dev:openDevTools", () => {
+  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+    return true;
+  }
+  return false;
+});
+import_electron.ipcMain.handle("dev:toggleDevTools", () => {
+  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+    } else {
+      mainWindow.webContents.openDevTools({ mode: "detach" });
+    }
+    return true;
+  }
+  return false;
+});
 import_electron.ipcMain.handle("app:getVersion", () => import_electron.app.getVersion());
 import_electron.ipcMain.handle("app:getPlatform", () => process.platform);
 import_electron.ipcMain.handle("app:getPath", (_event, name) => import_electron.app.getPath(name));

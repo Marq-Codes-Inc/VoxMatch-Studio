@@ -137,7 +137,12 @@ export interface ProjectEditorContextValue {
   // --- AI Alignment (Fine-Tuning) State ---
   isAligning: boolean;
   alignProgress: number;
-  handleAlignTimestamps: (file: ImportedMediaFile, currentText: string) => Promise<void>;
+  handleAlignTimestamps: (
+    file: ImportedMediaFile,
+    currentText: string,
+    onCompleteCallback?: () => void
+  ) => Promise<void>;
+  cancelAlignTimestamps: () => void;
 }
 
 const ProjectEditorContext = createContext<ProjectEditorContextValue | null>(null);

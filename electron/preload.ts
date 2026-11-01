@@ -29,7 +29,7 @@ const electronAPI = {
     jobId?: string;
   }) => ipcRenderer.invoke('export:writeText', options),
 
-  // Transcription bridge with optional prompt for forced alignment
+  // Restored for Groq API transcription (when no text is provided)
   transcribeAudio: (buffer: ArrayBuffer, mimeType: string, apiKey: string, prompt?: string) =>
     ipcRenderer.invoke('audio:transcribe', buffer, mimeType, apiKey, prompt),
 

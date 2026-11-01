@@ -1,4 +1,6 @@
+// src/components/ui/Modal.tsx
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full' | 'stage';
@@ -84,9 +86,9 @@ export const Modal: React.FC<ModalProps> = ({
 
   const heightClass = size === 'stage' ? '' : 'max-h-[90vh]';
 
-  return (
+  const modalContent = (
     <div
-      className={`fixed inset-0 flex items-center justify-center z-50 p-4
+      className={`fixed inset-0 flex items-center justify-center z-[9999] p-4
         ${animState === 'enter' ? 'animate-modal-overlay-in' : ''}
         ${animState === 'exit' ? 'animate-modal-overlay-out' : ''}
         ${animState === null && isOpen ? 'bg-black/50' : ''}
@@ -104,7 +106,7 @@ export const Modal: React.FC<ModalProps> = ({
         `}
       >
         <div className="flex justify-between items-center p-4 border-b border-app-border flex-shrink-0">
-          <h2 className="text-xl font-semibold">{title}</h2>
+          <h2 className="text-xl font-semibold text-app-text">{title}</h2>
           <button
             onClick={onClose}
             className="p-1 rounded-md hover:bg-app-gray-light text-app-icon-color transition-none"
@@ -113,8 +115,16 @@ export const Modal: React.FC<ModalProps> = ({
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-hidden flex-1 flex flex-col">{children}</div>
+        
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );
+
+  // Use React Portal to break out of the video preview's stacking context
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : null;
 };

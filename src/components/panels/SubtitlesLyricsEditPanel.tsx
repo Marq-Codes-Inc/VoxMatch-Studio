@@ -6,32 +6,23 @@ import {
   Minimize2,
   Split,
   Combine,
-  Zap,
   Trash2,
   CheckSquare,
   Plus,
   Layers,
   Edit,
-  Clock,
-  Upload,
   Loader,
+  Upload,
+  XCircle,
 } from 'lucide-react';
-import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
-import { LyricLine } from '../../types/types';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { TemplatesContent } from '../modals/TemplatesContent';
-import { Dropdown } from '../ui/Dropdown';
-import {
-  calculateSmartTiming,
-  getTimingConfigForLanguage,
-  DEFAULT_CONFIG,
-} from '../../utils/timingUtils';
+import { Modal } from '../ui/Modal';
+import { PasteImportModalContent } from '../modals/PasteImportModalContent';
 import { useProjectEditor } from '../../contexts/ProjectEditorContext';
 
-// Modularized imports using ./EditPanel
-import { SUBTITLE_LANGUAGES, ExpandableTextarea } from './EditPanel/helpers';
-import { TimingPreview } from './EditPanel/TimingPreview';
-import { TextStyleControls } from './EditPanel/TextStyleControls';
 import { LyricsList } from './EditPanel/LyricsList';
+import { TextStyleControls } from './EditPanel/TextStyleControls';
 
 interface LyricsSubtitlesPanelProps {
   isLeftPanelFilled: boolean;
@@ -82,14 +73,10 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     subtitles,
     handleLyricChange,
     handleSubtitleChange,
-    handleAddSubtitle,
-    handleAddLyric,
     handleDeleteSubtitle,
     handleDeleteLyric,
     handleMergeSubtitles,
     handleSplitSubtitleAt,
-    handleBatchAddLyrics,
-    handleBatchAddSubtitles,
     selectedSubtitleIds,
     selectedLyricIds,
     toggleSubtitleSelection,
@@ -100,14 +87,10 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     setLyricTextStyle,
     subtitleTextStyle,
     setSubtitleTextStyle,
-    subtitleLanguage,
-    setSubtitleLanguage,
     currentTime,
-    mediaDuration,
-    settings,
-    importSubtitleFile,
     activeFile,
     handleAlignTimestamps,
+    cancelAlignTimestamps,
     isAligning,
     alignProgress,
   } = ctx;
@@ -115,19 +98,8 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
   const lyricsListRef = useRef<HTMLDivElement>(null);
   const subtitlesListRef = useRef<HTMLDivElement>(null);
 
-  const subtitleFileInputRef = useRef<HTMLInputElement>(null);
-  const lyricsFileInputRef = useRef<HTMLInputElement>(null);
-
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
-
-  const [lyricsPasteText, setLyricsPasteText] = useState('');
-  const [subtitlesPasteText, setSubtitlesPasteText] = useState('');
-  const [isLyricsExpanded, setIsLyricsExpanded] = useState(true);
-  const [isSubtitlesExpanded, setIsSubtitlesExpanded] = useState(true);
-
-  const [startOffset, setStartOffset] = useState(0);
-  const [estimatedClips, setEstimatedClips] = useState<{ text: string; duration: number }[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
 
   const sortedSubtitles = useMemo(() => [...subtitles].sort((a, b) => a.startTime - b.startTime), [subtitles]);
   const sortedLyrics = useMemo(() => [...lyrics].sort((a, b) => a.startTime - b.startTime), [lyrics]);
@@ -146,14 +118,12 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     setActiveClipId(clip?.id ?? null);
   }, [currentTime, activeList]);
 
-  // Auto-scroll active clip
   const lastScrolledRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeClipId || lastScrolledRef.current === activeClipId) return;
     const container = listRef.current;
     if (!container) return;
     
-    // Find the element by data attribute (handled in LyricsList)
     const el = container.querySelector(`[data-clip-id="${activeClipId}"]`) as HTMLElement;
     if (!el) return;
 
@@ -173,72 +143,6 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     }
   }, [activeClipId, listRef]);
 
-  // Timing preview
-  useEffect(() => {
-    const text = activeLeftPanelTab === 'subtitles' ? subtitlesPasteText : lyricsPasteText;
-    if (!text.trim()) {
-      setEstimatedClips([]);
-      setShowPreview(false);
-      return;
-    }
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) {
-      setEstimatedClips([]);
-      return;
-    }
-
-    const start = startOffset;
-    const remaining = Math.max(0, mediaDuration - start);
-    const langCfg = activeLeftPanelTab === 'subtitles' ? getTimingConfigForLanguage(subtitleLanguage) : {};
-
-    const clips = calculateSmartTiming(lines, start, remaining, {
-      baseDurationPerChar: settings?.timing?.baseDurationPerChar ?? DEFAULT_CONFIG.baseDurationPerChar,
-      minDuration: settings?.timing?.minClipDuration ?? DEFAULT_CONFIG.minDuration,
-      maxDuration: settings?.timing?.maxClipDuration ?? DEFAULT_CONFIG.maxDuration,
-      pauseBetweenClips: settings?.timing?.pauseBetweenClips ?? DEFAULT_CONFIG.pauseBetweenClips,
-      readingSpeed: settings?.defaultReadingSpeed ?? 'normal',
-      ...langCfg,
-    });
-
-    setEstimatedClips(clips.map((c) => ({ text: c.text, duration: c.endTime - c.startTime })));
-    setShowPreview(true);
-  }, [lyricsPasteText, subtitlesPasteText, activeLeftPanelTab, startOffset, mediaDuration, subtitleLanguage, settings]);
-
-  const handleAutoSync = useCallback(
-    (kind: 'lyrics' | 'subtitles') => {
-      const text = kind === 'lyrics' ? lyricsPasteText : subtitlesPasteText;
-      if (!text.trim()) return;
-      const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-      if (!lines.length) return;
-
-      const start = startOffset;
-      const remaining = Math.max(0, mediaDuration - start);
-      const langCfg = kind === 'subtitles' ? getTimingConfigForLanguage(subtitleLanguage) : {};
-
-      const clips = calculateSmartTiming(lines, start, remaining, {
-        baseDurationPerChar: settings?.timing?.baseDurationPerChar ?? DEFAULT_CONFIG.baseDurationPerChar,
-        minDuration: settings?.timing?.minClipDuration ?? DEFAULT_CONFIG.minDuration,
-        maxDuration: settings?.timing?.maxClipDuration ?? DEFAULT_CONFIG.maxDuration,
-        pauseBetweenClips: settings?.timing?.pauseBetweenClips ?? DEFAULT_CONFIG.pauseBetweenClips,
-        readingSpeed: settings?.defaultReadingSpeed ?? 'normal',
-        ...langCfg,
-      });
-
-      if (kind === 'lyrics') {
-        handleBatchAddLyrics(clips);
-        setLyricsPasteText('');
-        setIsLyricsExpanded(false);
-      } else {
-        handleBatchAddSubtitles(clips);
-        setSubtitlesPasteText('');
-        setIsSubtitlesExpanded(false);
-      }
-      setEstimatedClips([]);
-      setShowPreview(false);
-    },
-    [lyricsPasteText, subtitlesPasteText, startOffset, mediaDuration, subtitleLanguage, settings, handleBatchAddLyrics, handleBatchAddSubtitles]
-  );
-
   const handleSelectAll = () => {
     if (allSelected) clearSelection();
     else selectAll();
@@ -253,36 +157,45 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
     clearSelection();
   };
 
-  const handleImportFile = async (f: File | undefined) => {
-    if (!f) return;
-    await importSubtitleFile(f);
+  const handleFineTuneClick = () => {
+    if (!activeFile) return;
+    const text = activeLeftPanelTab === 'lyrics' 
+      ? lyrics.map(l => l.text).join('\n')
+      : subtitles.map(s => s.text).join('\n');
+      
+    handleAlignTimestamps(activeFile, text, () => {
+      // Success callback
+      // We use setTimeout to let React paint the final UI state before blocking with an alert
+      setTimeout(() => alert('Alignment complete! Check your timeline.'), 100);
+    });
   };
 
   return (
     <div className="bg-app-surface p-4 rounded-lg border border-app-border h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0 space-y-3 pb-3">
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <h3 className="text-xl font-semibold flex items-center">
             <Edit className="mr-2 text-primary" /> Edit
           </h3>
-
-          {isVerticalLayout ? (
-            <button
-              onClick={() => setIsLeftPanelTopRowFilled(!isLeftPanelTopRowFilled)}
-              className="p-2 rounded-md text-app-icon-color"
-              title={isLeftPanelTopRowFilled ? 'Restore Panel' : 'Fill Pane'}
-            >
-              {isLeftPanelTopRowFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsLeftPanelFilled(!isLeftPanelFilled)}
-              className="p-2 rounded-md text-app-icon-color"
-              title={isLeftPanelFilled ? 'Restore Panel' : 'Fill Pane'}
-            >
-              {isLeftPanelFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isVerticalLayout ? (
+              <button
+                onClick={() => setIsLeftPanelTopRowFilled(!isLeftPanelTopRowFilled)}
+                className="p-2 rounded-md text-app-icon-color hover:bg-app-gray-light"
+                title={isLeftPanelTopRowFilled ? 'Restore Panel' : 'Fill Pane'}
+              >
+                {isLeftPanelTopRowFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsLeftPanelFilled(!isLeftPanelFilled)}
+                className="p-2 rounded-md text-app-icon-color hover:bg-app-gray-light"
+                title={isLeftPanelFilled ? 'Restore Panel' : 'Fill Pane'}
+              >
+                {isLeftPanelFilled ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex bg-app-gray-dark rounded-lg p-1">
@@ -314,174 +227,143 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
       <div className="flex-1 min-h-0 flex flex-col">
         {activeSubTab === 'edit' && (
           <div className="flex flex-col h-full overflow-hidden">
-            <input
-              ref={activeLeftPanelTab === 'subtitles' ? subtitleFileInputRef : lyricsFileInputRef}
-              type="file"
-              accept=".srt,.vtt,.lrc,.ass,.ssa"
-              className="hidden"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                await handleImportFile(f);
-              }}
-            />
-
-            <div className="flex-shrink-0 space-y-3 pb-4">
-              <ExpandableTextarea
-                label={`Paste ${activeLeftPanelTab === 'subtitles' ? 'Subtitles' : 'Lyrics'}`}
-                value={activeLeftPanelTab === 'subtitles' ? subtitlesPasteText : lyricsPasteText}
-                onChange={activeLeftPanelTab === 'subtitles' ? setSubtitlesPasteText : setLyricsPasteText}
-                expanded={activeLeftPanelTab === 'subtitles' ? isSubtitlesExpanded : isLyricsExpanded}
-                onToggle={() => activeLeftPanelTab === 'subtitles' ? setIsSubtitlesExpanded((v) => !v) : setIsLyricsExpanded((v) => !v)}
-                placeholder={`Paste ${activeLeftPanelTab} here. Each line becomes a clip.`}
-              />
-
-              <div className="flex items-center gap-3 px-1">
-                <label className="text-xs text-app-gray flex-shrink-0">Start at</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={startOffset}
-                  onChange={(e) => setStartOffset(Number(e.target.value))}
-                  className="w-20 bg-app-input-bg border border-app-border rounded-sm px-2 py-1 text-xs text-app-text focus:ring-1 focus:ring-primary outline-none"
-                />
-                <span className="text-xs text-app-gray">sec</span>
+            
+            {/* Header Actions (Create / Fine-Tune) */}
+            <div className="flex-shrink-0 pb-3 flex items-center justify-end gap-2">
+              <div className="relative group">
                 <button
-                  onClick={() => setStartOffset(currentTime)}
-                  className="ml-auto text-[10px] text-primary hover:underline"
+                  onClick={() => setIsPasteModalOpen(true)}
+                  disabled={isAligning}
+                  className="px-4 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray-dark hover:text-white flex items-center justify-center text-sm font-medium transition-colors border border-transparent hover:border-app-border-light disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Set to Playhead
+                  <Plus className="mr-1.5" size={16} /> Add Clips
                 </button>
+                <div className="absolute right-0 top-full mt-2 hidden group-hover:block z-[100] px-2 py-1 bg-app-surface border border-app-border text-app-text text-xs rounded shadow-lg whitespace-nowrap">
+                  Paste text or import a subtitle file
+                </div>
               </div>
-
-              <button
-                onClick={() =>
-                  (activeLeftPanelTab === 'subtitles' ? subtitleFileInputRef : lyricsFileInputRef).current?.click()
-                }
-                className="w-full px-4 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm"
-              >
-                <Upload className="mr-2" size={16} />
-                Import from File (.srt / .vtt / .lrc / .ass)
-              </button>
-
-              {showPreview && estimatedClips.length > 0 && (
-                <TimingPreview clips={estimatedClips} />
-              )}
-
-              {activeLeftPanelTab === 'subtitles' && (
-                <Dropdown
-                  id="subtitle-language"
-                  name="language"
-                  label="Language"
-                  value={subtitleLanguage}
-                  options={SUBTITLE_LANGUAGES}
-                  onChange={(_, value) => setSubtitleLanguage(value as string)}
-                />
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleAutoSync(activeLeftPanelTab === 'subtitles' ? 'subtitles' : 'lyrics')}
-                  disabled={!(activeLeftPanelTab === 'subtitles' ? subtitlesPasteText.trim() : lyricsPasteText.trim())}
-                  className="flex-1 px-4 py-2 bg-success text-white rounded-md hover:bg-opacity-80 flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Zap className="mr-2" size={18} />
-                  Auto-Sync
-                </button>
-
-                {activeFile && (activeLeftPanelTab === 'lyrics' ? lyrics.length > 0 : subtitles.length > 0) && (
+              
+              {activeFile && activeList.length > 0 && (
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      const text = activeLeftPanelTab === 'lyrics' 
-                        ? lyrics.map(l => l.text).join('\n')
-                        : subtitles.map(s => s.text).join('\n');
-                      handleAlignTimestamps(activeFile, text);
-                    }}
+                    onClick={handleFineTuneClick}
                     disabled={isAligning}
-                    className="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover flex items-center justify-center text-sm disabled:opacity-50"
-                    title="Uses AI to perfectly match timestamps to the audio"
+                    className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover flex items-center justify-center text-sm font-medium disabled:opacity-80 transition-all shadow-md shadow-primary/20"
+                    title="Aligns existing clips precisely to the audio using AI"
                   >
                     {isAligning ? (
                       <>
-                        <Loader className="animate-spin mr-2" size={16} />
+                        <Loader className="animate-spin mr-1.5" size={16} />
                         Aligning {alignProgress}%
                       </>
                     ) : (
-                      <>
-                        <Clock className="mr-2" size={16} />
-                        Fine-Tune Timing
-                      </>
+                      'Fine-Tune Timing'
                     )}
                   </button>
-                )}
-              </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={activeLeftPanelTab === 'subtitles' ? handleAddSubtitle : handleAddLyric}
-                  className="px-2 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm"
-                >
-                  <Plus className="mr-1" size={14} /> Add
-                </button>
+                  {isAligning && (
+                    <button
+                      onClick={cancelAlignTimestamps}
+                      className="px-4 py-2 bg-danger text-white rounded-md hover:bg-danger/80 flex items-center justify-center text-sm font-medium transition-colors shadow-md shadow-danger/20"
+                      title="Cancel alignment"
+                    >
+                      <XCircle className="mr-1.5" size={16} />
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
+            {/* Contextual Selection Toolbar */}
+            {selectedSet.size > 0 && !isAligning && (
+              <div className="flex-shrink-0 pb-3 flex flex-wrap gap-2 p-2 bg-app-gray-light/50 rounded-lg border border-app-border animate-fade-in">
+                <span className="text-xs text-app-text font-medium py-1.5 px-1 mr-auto">
+                  {selectedSet.size} selected
+                </span>
                 {activeLeftPanelTab === 'subtitles' && (
-                  <button
-                    onClick={() => {
-                      if (selectedSubtitleIds.size === 1) {
-                        handleSplitSubtitleAt([...selectedSubtitleIds][0], currentTime);
-                      }
-                    }}
-                    disabled={selectedSubtitleIds.size !== 1}
-                    className="px-2 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Split className="mr-1" size={14} /> Split
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        if (selectedSubtitleIds.size === 1) {
+                          handleSplitSubtitleAt([...selectedSubtitleIds][0], currentTime);
+                        }
+                      }}
+                      disabled={selectedSubtitleIds.size !== 1}
+                      className="px-2.5 py-1.5 bg-app-surface border border-app-border text-app-text rounded hover:bg-app-gray flex items-center text-xs disabled:opacity-50"
+                    >
+                      <Split className="mr-1" size={12} /> Split
+                    </button>
+                    <button
+                      onClick={handleMergeSubtitles}
+                      disabled={selectedSubtitleIds.size < 2}
+                      className="px-2.5 py-1.5 bg-app-surface border border-app-border text-app-text rounded hover:bg-app-gray flex items-center text-xs disabled:opacity-50"
+                    >
+                      <Combine className="mr-1" size={12} /> Merge
+                    </button>
+                  </>
                 )}
-
-                {activeLeftPanelTab === 'subtitles' && (
-                  <button
-                    onClick={handleMergeSubtitles}
-                    disabled={selectedSubtitleIds.size < 2}
-                    className="px-2 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Combine className="mr-1" size={14} /> Merge
-                  </button>
-                )}
-
-                <button
-                  onClick={handleSelectAll}
-                  className={`px-2 py-2 bg-app-gray-light text-app-text rounded-md hover:bg-app-gray flex items-center justify-center text-sm ${
-                    activeLeftPanelTab === 'lyrics' ? 'col-span-1' : 'col-span-1'
-                  }`}
-                >
-                  <CheckSquare className="mr-1" size={14} /> {allSelected ? 'None' : 'All'}
-                </button>
-
                 <button
                   onClick={handleDeleteSelected}
-                  disabled={selectedSet.size === 0}
-                  className={`px-2 py-2 bg-app-gray-light text-danger rounded-md hover:bg-danger/10 flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                    activeLeftPanelTab === 'subtitles' ? 'col-span-2' : 'col-span-1'
-                  }`}
+                  className="px-2.5 py-1.5 bg-app-surface border border-app-border text-danger rounded hover:bg-danger/10 flex items-center text-xs"
                 >
-                  <Trash2 className="mr-1" size={14} />
-                  Delete{activeLeftPanelTab === 'subtitles' ? ` (${selectedSet.size})` : ''}
+                  <Trash2 className="mr-1" size={12} /> Delete
                 </button>
               </div>
-            </div>
+            )}
 
             <div className="flex-1 min-h-0 flex flex-col">
-              <LyricsList
-                list={activeList}
-                activeClipId={activeClipId}
-                selectedIds={selectedSet}
-                toggleSelection={activeLeftPanelTab === 'subtitles' ? toggleSubtitleSelection : toggleLyricSelection}
-                onChange={activeLeftPanelTab === 'subtitles' ? handleSubtitleChange : handleLyricChange}
-                onDelete={activeLeftPanelTab === 'subtitles' ? handleDeleteSubtitle : handleDeleteLyric}
-                listRef={listRef}
-              />
+              {activeList.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-app-gray-light/5 rounded-lg border-2 border-dashed border-app-border">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <FileText size={32} className="text-primary opacity-80" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-app-text mb-2">No {activeLeftPanelTab} yet</h4>
+                  <p className="text-sm text-app-gray mb-6 max-w-[250px]">
+                    Paste your text or import a subtitle file to generate timeline clips.
+                  </p>
+                  <button
+                    onClick={() => setIsPasteModalOpen(true)}
+                    disabled={isAligning}
+                    className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover flex items-center justify-center text-sm font-medium shadow-lg shadow-primary/20 transition-all mb-3 disabled:opacity-50"
+                  >
+                    <Upload className="mr-2" size={16} />
+                    Get Started
+                  </button>
+                  
+                  <button
+                    onClick={() => setActiveSubTab('styles')}
+                    className="text-xs text-app-gray hover:text-app-text flex items-center justify-center gap-1 transition-colors group"
+                  >
+                    <Layers size={14} className="group-hover:text-primary transition-colors" />
+                    Or customize the Stage layout first
+                  </button>
+                </div>
+              ) : (
+                <LyricsList
+                  list={activeList}
+                  activeClipId={activeClipId}
+                  selectedIds={selectedSet}
+                  toggleSelection={activeLeftPanelTab === 'subtitles' ? toggleSubtitleSelection : toggleLyricSelection}
+                  onChange={activeLeftPanelTab === 'subtitles' ? handleSubtitleChange : handleLyricChange}
+                  onDelete={activeLeftPanelTab === 'subtitles' ? handleDeleteSubtitle : handleDeleteLyric}
+                  listRef={listRef}
+                />
+              )}
             </div>
+
+            {/* Select All Footer */}
+            {activeList.length > 0 && (
+              <div className="flex-shrink-0 pt-3 mt-2 border-t border-app-border flex justify-end items-center">
+                <button
+                  onClick={handleSelectAll}
+                  disabled={isAligning}
+                  className="px-2 py-1.5 text-app-gray hover:text-app-text flex items-center text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  <CheckSquare className="mr-1.5" size={14} /> {allSelected ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -491,7 +373,7 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
               onClick={onOpenStageSettingsModal}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-md bg-app-gray-light hover:bg-app-gray-dark text-app-text text-sm font-medium"
             >
-              <Layers size={16} /> Edit Stage
+              <Layers size={16} /> Edit Stage Settings
             </button>
             {activeLeftPanelTab === 'subtitles' ? (
               <TextStyleControls
@@ -518,6 +400,15 @@ export const LyricsSubtitlesPanel: React.FC<LyricsSubtitlesPanelProps> = ({
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={isPasteModalOpen}
+        onClose={() => setIsPasteModalOpen(false)}
+        title={`Add ${activeLeftPanelTab === 'subtitles' ? 'Subtitles' : 'Lyrics'}`}
+        size="lg"
+      >
+        <PasteImportModalContent onClose={() => setIsPasteModalOpen(false)} />
+      </Modal>
     </div>
   );
 };

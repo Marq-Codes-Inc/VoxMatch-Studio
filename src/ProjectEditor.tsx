@@ -484,6 +484,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       isAligning: editor.isAligning,
       alignProgress: editor.alignProgress,
       handleAlignTimestamps: editor.handleAlignTimestamps,
+      cancelAlignTimestamps: editor.cancelAlignTimestamps
     }),
     [
       isPlaying,
@@ -575,6 +576,7 @@ const ProjectEditorContent: React.FC<ProjectEditorProps> = ({
       editor.isAligning,
       editor.alignProgress,
       editor.handleAlignTimestamps,
+      editor.cancelAlignTimestamps
     ],
   );
 

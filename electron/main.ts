@@ -1,4 +1,3 @@
-// electron/main.ts
 import {
   app,
   BrowserWindow,
@@ -182,7 +181,6 @@ function createWindow(): void {
   mainWindow.setMenu(null);
   Menu.setApplicationMenu(null);
 
-  // Intercept native close event
   mainWindow.on('close', (event) => {
     if (!isForceClosing) {
       event.preventDefault();
@@ -610,27 +608,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle('dev:openDevTools', () => {
-  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-    return true;
-  }
-  return false;
-});
-
-ipcMain.handle('dev:toggleDevTools', () => {
-  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.webContents.isDevToolsOpened()) {
-      mainWindow.webContents.closeDevTools();
-    } else {
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
-    }
-    return true;
-  }
-  return false;
-});
-
-// --- TRANSCRIPTION HANDLER ---
+// --- RESTORED TRANSCRIPTION HANDLER ---
 ipcMain.handle(
   'audio:transcribe',
   async (_event, buffer: ArrayBuffer, mimeType: string, apiKey: string, prompt?: string) => {
@@ -644,8 +622,10 @@ ipcMain.handle(
       formData.append('model', 'whisper-large-v3-turbo');
       formData.append('response_format', 'verbose_json');
       formData.append('language', 'en');
+      
+      formData.append('timestamp_granularities[]', 'word');
+      formData.append('timestamp_granularities[]', 'segment');
 
-      // If a prompt is provided, pass it to Whisper for forced alignment
       if (prompt) {
         formData.append('prompt', prompt);
       }
@@ -671,7 +651,27 @@ ipcMain.handle(
     }
   }
 );
-// -----------------------------
+// --------------------------------------
+
+ipcMain.handle('dev:openDevTools', () => {
+  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('dev:toggleDevTools', () => {
+  if (isDev && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+    } else {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+    return true;
+  }
+  return false;
+});
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 ipcMain.handle('app:getPlatform', () => process.platform);

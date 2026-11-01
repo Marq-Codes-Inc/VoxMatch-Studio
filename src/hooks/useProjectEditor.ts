@@ -8,7 +8,8 @@ import { generateId } from '../utils/utils';
 import { parseSubtitleFile, isSubtitleFileName } from '../utils/subtitleImport';
 import type { ImportSubtitleResult } from '../utils/subtitleImport';
 import { extractVideoPoster } from '../utils/mediaPoster';
-import { transcribeMediaFile, getAudioSegments } from '../utils/audioTranscription';
+import { transcribeMediaFile } from '../utils/audioTranscription';
+import { startAlignmentWorker } from '../utils/aligner';
 
 export function useProjectEditor(
   initialProject: VoxMatchProject,
@@ -41,6 +42,7 @@ export function useProjectEditor(
   // Alignment (Fine-tuning) state
   const [isAligning, setIsAligning] = useState(false);
   const [alignProgress, setAlignProgress] = useState(0);
+  const alignWorkerRef = useRef<{ cancel: () => void } | null>(null);
 
   const [isVuOverlayEnabled, setIsVuOverlayEnabled] = useState(false);
   const toggleVuOverlay = useCallback(() => setIsVuOverlayEnabled((v) => !v), []);
@@ -390,57 +392,73 @@ export function useProjectEditor(
     runTranscription();
   }, [transcribeFile, setActiveLeftPanelTab, handleBatchAddLyrics, handleBatchAddSubtitles, markAsUnsaved, initialProject.mode]);
 
+  // Cancel function for alignment
+  const cancelAlignTimestamps = useCallback(() => {
+    if (alignWorkerRef.current) {
+      alignWorkerRef.current.cancel();
+      alignWorkerRef.current = null;
+    }
+  }, []);
+
   // Handle AI Fine-Tuning (Forced Alignment)
-  const handleAlignTimestamps = useCallback(async (file: ImportedMediaFile) => {
+  const handleAlignTimestamps = useCallback(async (
+    file: ImportedMediaFile, 
+    currentText: string,
+    onCompleteCallback?: () => void
+  ) => {
     setIsAligning(true);
     setAlignProgress(0);
-    try {
-      let sourceFile = file.file;
-      if (!sourceFile && file.url) {
+    
+    let sourceFile = file.file;
+    if (!sourceFile && file.url) {
+      try {
         const res = await fetch(file.url);
         const blob = await res.blob();
         sourceFile = new File([blob], file.name, { type: file.type });
+      } catch (err) {
+        alert("Failed to load audio file.");
+        setIsAligning(false);
+        return;
       }
-      if (!sourceFile) throw new Error("No file data available.");
-
-      // 1. Get the spoken timestamps from the audio (ignoring text)
-      const segments = await getAudioSegments(sourceFile, (msg, percent) => {
-        setAlignProgress(percent);
-      });
-
-      if (segments.length === 0) {
-        throw new Error("No vocal segments detected in the audio.");
-      }
-
-      // 2. Map the spoken timestamps to YOUR existing clips
-      const targetClips = activeLeftPanelTab === 'lyrics' ? [...lyrics] : [...subtitles];
-      
-      const updatedClips = targetClips.map((clip, index) => {
-        const segment = segments[index];
-        if (segment) {
-          return {
-            ...clip,
-            startTime: segment.startTime,
-            endTime: segment.endTime,
-          };
-        }
-        return clip;
-      });
-
-      // 3. Update the timeline
-      if (activeLeftPanelTab === 'lyrics') {
-        setLyrics(updatedClips);
-      } else {
-        setSubtitles(updatedClips);
-      }
-      markAsUnsaved();
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : 'Alignment failed');
-    } finally {
-      setIsAligning(false);
-      setAlignProgress(0);
     }
+    if (!sourceFile) {
+      alert("No file data available.");
+      setIsAligning(false);
+      return;
+    }
+
+    const targetClips = activeLeftPanelTab === 'lyrics' ? [...lyrics] : [...subtitles];
+
+    alignWorkerRef.current = startAlignmentWorker(
+      sourceFile,
+      targetClips,
+      (msg, percent) => {
+        setAlignProgress(percent);
+      },
+      (update) => {
+        const setter = activeLeftPanelTab === 'lyrics' ? setLyrics : setSubtitles;
+        setter((prev) => 
+          prev.map(c => c.id === update.clipId 
+            ? { ...c, startTime: update.startTime, endTime: update.endTime } 
+            : c
+          )
+        );
+      },
+      () => {
+        setIsAligning(false);
+        setAlignProgress(0);
+        alignWorkerRef.current = null;
+        markAsUnsaved();
+        if (onCompleteCallback) onCompleteCallback();
+      },
+      (err) => {
+        console.error('[Aligner Error]', err);
+        alert(err);
+        setIsAligning(false);
+        setAlignProgress(0);
+        alignWorkerRef.current = null;
+      }
+    );
   }, [activeLeftPanelTab, lyrics, subtitles, setLyrics, setSubtitles, markAsUnsaved]);
 
   const handleExport = useCallback(() => setIsExportModalOpen(true), []);
@@ -510,16 +528,15 @@ export function useProjectEditor(
     isVuOverlayEnabled,
     toggleVuOverlay,
     importSubtitleFile,
-    // Transcription state
     isTranscribing,
     transcribeStatus,
     transcribeProgress,
     transcriptionError,
     setTranscriptionError,
     setTranscribeFile,
-    // Alignment state
     isAligning,
     alignProgress,
     handleAlignTimestamps,
+    cancelAlignTimestamps,
   };
 }
